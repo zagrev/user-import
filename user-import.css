@@ -1,0 +1,86 @@
+.user-import-mapping-panels {
+	display: grid;
+	grid-template-columns: minmax(180px, 0.8fr) minmax(280px, 1.2fr);
+	gap: 24px;
+	max-width: 900px;
+}
+
+.user-import-mapping-panels h3 {
+	margin-bottom: 8px;
+}
+
+.user-import-fields,
+.user-import-columns {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.user-import-fields.is-dragging-over {
+	background: #f0f0f1;
+	outline: 2px dashed #8c8f94;
+	outline-offset: 4px;
+	padding: 4px;
+}
+
+.user-import-field,
+.user-import-column {
+	box-sizing: border-box;
+	border: 1px solid #c3c4c7;
+	background: #fff;
+	padding: 8px 10px;
+	text-align: left;
+}
+
+.user-import-field {
+	cursor: grab;
+	width: 100%;
+}
+
+.user-import-field:active {
+	cursor: grabbing;
+}
+
+.user-import-field.is-mapped {
+	background: #f0f0f1;
+	border-color: #a7aaad;
+	color: #646970;
+}
+
+.user-import-column {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	min-height: 42px;
+}
+
+.user-import-column.is-dragging-over {
+	border-color: #2271b1;
+	box-shadow: 0 0 0 1px #2271b1;
+}
+
+.user-import-drop-zone {
+	color: #646970;
+	font-size: 12px;
+	font-style: italic;
+}
+
+.user-import-assigned-field {
+	background: #e7f3ff;
+	border: 1px solid #72aee6;
+	color: #135e96;
+	cursor: pointer;
+	padding: 3px 6px;
+}
+
+@media screen and (max-width: 782px) {
+	.user-import-mapping-panels {
+		grid-template-columns: 1fr;
+	}
+
+	.user-import-column {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+}
