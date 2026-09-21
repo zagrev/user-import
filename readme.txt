@@ -9,7 +9,7 @@ Import WordPress users from a CSV file.
 
 == Description ==
 
-User Import adds an Import Users page under Users in the WordPress admin.
+User Import adds separate Import Users and Export Users pages under Users in the WordPress admin. Both pages share the same mapping editor and saved mappings.
 
 == Column Mapping ==
 
@@ -23,7 +23,7 @@ On the Import Users page, choose the CSV file to display its columns. Drag a use
 
 Mappings can be saved by entering a name and clicking **Save mapping**. Select a saved mapping to load it into the mapping editor for reuse.
 
-Choose a CSV file, select or create a mapping, and click **Export Mapped CSV** to download a new CSV whose columns follow the selected user fields. The original CSV is not changed.
+On the Export Users page, choose a CSV file, select or create a mapping, and click **Export Mapped CSV** to download a new CSV whose columns follow the selected user fields. The original CSV is not changed.
 
 For example:
 
@@ -43,3 +43,5 @@ Supported standard fields include `user_login`, `user_email`, `user_pass`, `user
 If the mapping is blank, the importer uses the CSV headers as field names after sanitizing them. Therefore, blank mapping works when the CSV contains headers such as `user_login`, `user_email`, and `display_name`. For headers such as `Email Address`, provide an explicit mapping.
 
 If `user_pass` is not mapped, new users receive a securely generated password. Existing usernames and email addresses are skipped. Rows with missing required mappings, invalid fields, or missing CSV columns are reported as errors.
+
+When an import reports errors, the uploaded CSV is retained temporarily for the current user so the mapping can be corrected and submitted again without reselecting the file. A successful import removes the retained file.

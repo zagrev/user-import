@@ -22,6 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class User_Import_Plugin {
 	private const NONCE_ACTION = 'user_import_csv';
 	private const MENU_SLUG    = 'user-import';
+	private const EXPORT_MENU_SLUG = 'user-export';
 	private const MAPPINGS_OPTION = 'user_import_saved_mappings';
 
 	/**
@@ -45,7 +46,14 @@ final class User_Import_Plugin {
 			__( 'Import Users', 'user-import' ),
 			'create_users',
 			self::MENU_SLUG,
-			array( self::class, 'render_page' )
+			array( self::class, 'render_import_page' )
+		);
+		add_users_page(
+			__( 'User Exporter', 'user-import' ),
+			__( 'Export Users', 'user-import' ),
+			'create_users',
+			self::EXPORT_MENU_SLUG,
+			array( self::class, 'render_export_page' )
 		);
 	}
 
@@ -56,7 +64,7 @@ final class User_Import_Plugin {
 	 * @return void
 	 */
 	public static function enqueue_admin_assets( string $hook_suffix ): void {
-		if ( 'users_page_' . self::MENU_SLUG !== $hook_suffix ) {
+		if ( ! in_array( $hook_suffix, array( 'users_page_' . self::MENU_SLUG, 'users_page_' . self::EXPORT_MENU_SLUG ), true ) ) {
 			return;
 		}
 
@@ -102,7 +110,26 @@ final class User_Import_Plugin {
 	 *
 	 * @return void
 	 */
-	public static function render_page(): void {
+	public static function render_import_page(): void {
+		self::render_page( 'import' );
+	}
+
+	/**
+	 * Render the export page.
+	 *
+	 * @return void
+	 */
+	public static function render_export_page(): void {
+		self::render_page( 'export' );
+	}
+
+	/**
+	 * Render the shared mapping page.
+	 *
+	 * @param string $mode Either import or export.
+	 * @return void
+	 */
+	private static function render_page( string $mode ): void {
 		if ( ! current_user_can( 'create_users' ) ) {
 			wp_die( esc_html__( 'You do not have permission to import users.', 'user-import' ) );
 		}
@@ -112,36 +139,62 @@ final class User_Import_Plugin {
 		$saved_mappings = self::get_saved_mappings();
 		$selected_mapping = '';
 		$mapping        = '';
+		$pending_token  = '';
 		$action        = isset( $_POST['user_import_action'] ) ? sanitize_key( wp_unslash( $_POST['user_import_action'] ) ) : '';
 		if ( '' !== $action ) {
 			check_admin_referer( self::NONCE_ACTION );
 			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- The upload is validated by import_csv() before it is opened.
 			$upload  = isset( $_FILES['user_import_csv'] ) && is_array( $_FILES['user_import_csv'] ) ? $_FILES['user_import_csv'] : array();
+			$posted_pending_token = isset( $_POST['user_import_pending_token'] ) ? sanitize_file_name( wp_unslash( $_POST['user_import_pending_token'] ) ) : '';
+			$pending_token = $posted_pending_token;
+			if ( empty( $upload['tmp_name'] ) && '' !== $posted_pending_token ) {
+				$upload['tmp_name'] = self::get_pending_upload_path( $posted_pending_token );
+				$upload['error']    = file_exists( $upload['tmp_name'] ) ? 0 : UPLOAD_ERR_NO_FILE;
+			}
 			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Mapping rules are sanitized by parse_mapping().
 			$mapping = isset( $_POST['user_import_mapping'] ) ? (string) wp_unslash( $_POST['user_import_mapping'] ) : '';
 			$mapping_name = isset( $_POST['user_import_mapping_name'] ) ? sanitize_text_field( wp_unslash( $_POST['user_import_mapping_name'] ) ) : '';
 
 			if ( 'save_mapping' === $action ) {
+				if ( '' === trim( $mapping ) && isset( $saved_mappings[ $mapping_name ] ) ) {
+					$mapping = $saved_mappings[ $mapping_name ];
+				}
+
 				if ( '' === $mapping_name || '' === trim( $mapping ) ) {
 					$notice = __( 'Enter a mapping name and configure a mapping before saving.', 'user-import' );
 				} else {
 					$saved_mappings[ $mapping_name ] = $mapping;
 					update_option( self::MAPPINGS_OPTION, $saved_mappings );
 					$selected_mapping = $mapping_name;
+					$mapping          = $saved_mappings[ $mapping_name ];
 					$notice = __( 'Mapping saved.', 'user-import' );
 				}
-			} elseif ( 'export_csv' === $action ) {
+			} elseif ( 'export_csv' === $action && 'export' === $mode ) {
 				self::export_csv( $upload, $mapping );
-			} elseif ( 'import_users' === $action ) {
+			} elseif ( 'import_users' === $action && 'import' === $mode ) {
+				$pending_token = self::persist_pending_upload( $upload, $posted_pending_token );
+				if ( '' !== $pending_token ) {
+					$upload['tmp_name'] = self::get_pending_upload_path( $pending_token );
+					$upload['error']    = 0;
+				}
 				$results = self::import_csv( $upload, $mapping );
+				if ( ! empty( $results['errors'] ) && '' !== $pending_token ) {
+					$results['pending_token'] = $pending_token;
+				} elseif ( empty( $results['errors'] ) && '' !== $pending_token ) {
+					self::delete_pending_upload( $pending_token );
+					$pending_token = '';
+				}
 			}
+		}
+		if ( isset( $results['pending_token'] ) ) {
+			$pending_token = (string) $results['pending_token'];
 		}
 		?>
 		<div class="wrap">
-			<h1><?php esc_html_e( 'Import Users', 'user-import' ); ?></h1>
-			<p><?php esc_html_e( 'Upload a CSV and optionally map its columns to WordPress user fields.', 'user-import' ); ?></p>
+			<h1><?php echo esc_html( 'export' === $mode ? __( 'Export Users', 'user-import' ) : __( 'Import Users', 'user-import' ) ); ?></h1>
+			<p><?php echo esc_html( 'export' === $mode ? __( 'Upload a CSV and map its columns to generate a new CSV.', 'user-import' ) : __( 'Upload a CSV and map its columns to import WordPress users.', 'user-import' ) ); ?></p>
 
-			<?php if ( is_array( $results ) ) : ?>
+			<?php if ( 'import' === $mode && is_array( $results ) ) : ?>
 				<div class="notice notice-info">
 					<p>
 						<?php
@@ -169,10 +222,14 @@ final class User_Import_Plugin {
 
 			<form method="post" enctype="multipart/form-data">
 				<?php wp_nonce_field( self::NONCE_ACTION ); ?>
+				<?php if ( '' !== $pending_token ) : ?>
+					<input type="hidden" name="user_import_pending_token" value="<?php echo esc_attr( $pending_token ); ?>">
+					<p class="description"><?php esc_html_e( 'The uploaded CSV is being retained for this retry. Choose a new file to replace it.', 'user-import' ); ?></p>
+				<?php endif; ?>
 				<table class="form-table" role="presentation">
 					<tr>
 						<th scope="row"><label for="user-import-csv"><?php esc_html_e( 'CSV file', 'user-import' ); ?></label></th>
-						<td><input id="user-import-csv" name="user_import_csv" type="file" accept=".csv,text/csv" required></td>
+						<td><input id="user-import-csv" name="user_import_csv" type="file" accept=".csv,text/csv" <?php echo '' === $pending_token ? 'required' : ''; ?>></td>
 					</tr>
 					<tr>
 						<th scope="row"><label for="user-import-mapping"><?php esc_html_e( 'Column mapping', 'user-import' ); ?></label></th>
@@ -192,6 +249,12 @@ final class User_Import_Plugin {
 								<p><?php esc_html_e( 'Choose the CSV file, then drag user fields onto CSV columns. Drag a mapped field back to the user fields list to remove it. Required fields are marked.', 'user-import' ); ?></p>
 								<div class="user-import-mapping-panels">
 									<div>
+										<h3><?php esc_html_e( 'CSV columns', 'user-import' ); ?></h3>
+										<div id="user-import-columns" class="user-import-columns" aria-live="polite">
+											<p><?php esc_html_e( 'CSV columns will appear here after you choose a file.', 'user-import' ); ?></p>
+										</div>
+									</div>
+									<div>
 										<h3><?php esc_html_e( 'User fields', 'user-import' ); ?></h3>
 										<div id="user-import-fields" class="user-import-fields" aria-label="<?php esc_attr_e( 'Draggable user fields', 'user-import' ); ?>">
 											<?php foreach ( self::get_mapping_fields() as $field => $label ) : ?>
@@ -200,11 +263,6 @@ final class User_Import_Plugin {
 												</button>
 											<?php endforeach; ?>
 										</div>
-									</div>
-									<div>
-										<h3><?php esc_html_e( 'CSV columns', 'user-import' ); ?></h3>
-										<div id="user-import-columns" class="user-import-columns" aria-live="polite">
-											<p><?php esc_html_e( 'CSV columns will appear here after you choose a file.', 'user-import' ); ?></p>
 										</div>
 									</div>
 								</div>
@@ -218,8 +276,11 @@ final class User_Import_Plugin {
 					</tr>
 				</table>
 				<p class="submit">
-					<button type="submit" class="button button-primary" name="user_import_action" value="import_users"><?php esc_html_e( 'Import Users', 'user-import' ); ?></button>
-					<button type="submit" class="button" name="user_import_action" value="export_csv"><?php esc_html_e( 'Export Mapped CSV', 'user-import' ); ?></button>
+					<?php if ( 'import' === $mode ) : ?>
+						<button type="submit" class="button button-primary" name="user_import_action" value="import_users"><?php esc_html_e( 'Import Users', 'user-import' ); ?></button>
+					<?php else : ?>
+						<button type="submit" class="button button-primary" name="user_import_action" value="export_csv"><?php esc_html_e( 'Export Mapped CSV', 'user-import' ); ?></button>
+					<?php endif; ?>
 				</p>
 			</form>
 		</div>
@@ -234,6 +295,73 @@ final class User_Import_Plugin {
 	private static function get_saved_mappings(): array {
 		$mappings = get_option( self::MAPPINGS_OPTION, array() );
 		return is_array( $mappings ) ? array_filter( $mappings, 'is_string' ) : array();
+	}
+
+	/**
+	 * Keep an uploaded CSV available when an import needs correction and retry.
+	 *
+	 * @param array<string, mixed> $upload       Uploaded file data.
+	 * @param string              $existing_token Existing pending upload token.
+	 * @return string Pending upload token, or an empty string on failure.
+	 */
+	private static function persist_pending_upload( array $upload, string $existing_token = '' ): string {
+		$existing_path = self::get_pending_upload_path( $existing_token );
+		if ( '' !== $existing_token && $upload['tmp_name'] === $existing_path && file_exists( $existing_path ) && empty( $upload['error'] ) ) {
+			return $existing_token;
+		}
+
+		if ( empty( $upload['tmp_name'] ) || ! empty( $upload['error'] ) || ! is_readable( $upload['tmp_name'] ) ) {
+			return '';
+		}
+
+		$upload_dir = wp_upload_dir();
+		$pending_dir = trailingslashit( $upload_dir['basedir'] ) . 'user-import-pending';
+		if ( ! wp_mkdir_p( $pending_dir ) ) {
+			return '';
+		}
+
+		$token = hash( 'sha256', wp_generate_uuid4() . microtime( true ) );
+		$path  = trailingslashit( $pending_dir ) . get_current_user_id() . '-' . $token . '.csv';
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Copying the uploaded temporary CSV into a protected retry location.
+		if ( ! copy( $upload['tmp_name'], $path ) ) {
+			return '';
+		}
+
+		if ( '' !== $existing_token && file_exists( $existing_path ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing the replaced plugin-owned temporary CSV.
+			unlink( $existing_path );
+		}
+
+		return $token;
+	}
+
+	/**
+	 * Resolve a pending upload token for the current user.
+	 *
+	 * @param string $token Pending upload token.
+	 * @return string Pending upload path.
+	 */
+	private static function get_pending_upload_path( string $token ): string {
+		if ( ! preg_match( '/^[a-f0-9]{64}$/', $token ) ) {
+			return '';
+		}
+
+		$upload_dir = wp_upload_dir();
+		return trailingslashit( $upload_dir['basedir'] ) . 'user-import-pending/' . get_current_user_id() . '-' . $token . '.csv';
+	}
+
+	/**
+	 * Delete a retained upload after a successful import.
+	 *
+	 * @param string $token Pending upload token.
+	 * @return void
+	 */
+	private static function delete_pending_upload( string $token ): void {
+		$path = self::get_pending_upload_path( $token );
+		if ( file_exists( $path ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing this plugin-owned temporary CSV.
+			unlink( $path );
+		}
 	}
 
 	/**
@@ -312,10 +440,9 @@ final class User_Import_Plugin {
 			return $results;
 		}
 
+		try {
 		$headers = fgetcsv( $handle );
 		if ( false === $headers ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Closing the temporary uploaded CSV file.
-			fclose( $handle );
 			$results['errors'][] = __( 'The CSV file is empty.', 'user-import' );
 			return $results;
 		}
@@ -323,8 +450,6 @@ final class User_Import_Plugin {
 		$headers       = array_map( static fn( $header ): string => trim( (string) $header ), $headers );
 		$column_mapping = self::parse_mapping( $mapping, $headers );
 		if ( is_wp_error( $column_mapping ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Closing the temporary uploaded CSV file.
-			fclose( $handle );
 			$results['errors'][] = $column_mapping->get_error_message();
 			return $results;
 		}
@@ -370,6 +495,7 @@ final class User_Import_Plugin {
 				'user_login'   => $login,
 				'user_email'   => $email,
 				'user_pass'    => wp_generate_password(),
+				'notify'      => 'none',
 			);
 			foreach ( array( 'user_pass', 'user_nicename', 'user_url', 'display_name', 'first_name', 'last_name', 'nickname', 'description', 'locale' ) as $field ) {
 				if ( isset( $data[ $field ] ) ) {
@@ -398,9 +524,39 @@ final class User_Import_Plugin {
 			++$results['imported'];
 		}
 
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Closing the temporary uploaded CSV file.
-		fclose( $handle );
 		return $results;
+		} catch ( \Throwable $exception ) {
+			$results['errors'][] = __( 'The CSV import could not be completed.', 'user-import' );
+			return $results;
+		} finally {
+			if ( is_resource( $handle ) ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Always close the CSV handle, including exception paths.
+				fclose( $handle );
+			}
+
+			if ( ! self::is_pending_upload_path( (string) $upload['tmp_name'] ) && file_exists( $upload['tmp_name'] ) ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Removing the temporary uploaded CSV after processing.
+				unlink( $upload['tmp_name'] );
+			}
+		}
+	}
+
+	/**
+	 * Whether a file is a retained retry upload.
+	 *
+	 * @param string $path File path.
+	 * @return bool
+	 */
+	private static function is_pending_upload_path( string $path ): bool {
+		if ( ! function_exists( 'wp_upload_dir' ) ) {
+			return false;
+		}
+
+		$upload_dir  = wp_upload_dir();
+		$pending_dir = trailingslashit( $upload_dir['basedir'] ) . 'user-import-pending/';
+		$normalize   = static fn( string $value ): string => function_exists( 'wp_normalize_path' ) ? wp_normalize_path( $value ) : str_replace( '\\', '/', $value );
+
+		return str_starts_with( $normalize( $path ), $normalize( $pending_dir ) );
 	}
 
 	/**

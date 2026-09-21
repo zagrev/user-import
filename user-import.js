@@ -98,6 +98,33 @@
 		updateMapping();
 	};
 
+	const applyMapping = () => {
+		const mapping = mappingInput.value;
+		columnsContainer.querySelectorAll( '[data-assigned-field]' ).forEach( ( assigned ) => assigned.remove() );
+		updateMapping();
+
+		mapping.split( /\r?\n/ ).forEach( ( line ) => {
+			const trimmedLine = line.trim();
+			if ( ! trimmedLine.includes( '=' ) ) {
+				return;
+			}
+
+			const separator = trimmedLine.indexOf( '=' );
+			const source = trimmedLine.slice( 0, separator ).trim();
+			const target = trimmedLine.slice( separator + 1 ).trim();
+			const column = Array.from( columnsContainer.querySelectorAll( '[data-column-index]' ) ).find( ( item ) => {
+				return /^\d+$/.test( source )
+					? item.dataset.columnIndex === source
+					: item.dataset.columnHeader.toLowerCase() === source.toLowerCase();
+			} );
+			const field = Array.from( fieldsContainer.querySelectorAll( '[data-user-field]' ) ).find( ( item ) => item.dataset.userField === target );
+
+			if ( column && field ) {
+				assignField( column, field );
+			}
+		} );
+	};
+
 	const renderColumns = ( headers ) => {
 		columnsContainer.innerHTML = '';
 		headers.forEach( ( header, index ) => {
@@ -127,6 +154,7 @@
 			} );
 			columnsContainer.appendChild( column );
 		} );
+		applyMapping();
 	};
 
 	mappingBuilder.querySelectorAll( '[data-user-field]' ).forEach( ( field ) => {
@@ -176,6 +204,9 @@
 			const selected = savedMappingSelect.options[ savedMappingSelect.selectedIndex ];
 			mappingInput.value = selected ? selected.dataset.mapping || '' : '';
 			mappingInput.dispatchEvent( new Event( 'input' ) );
+			if ( columnsContainer.querySelector( '[data-column-index]' ) ) {
+				applyMapping();
+			}
 		} );
 	}
 }() );

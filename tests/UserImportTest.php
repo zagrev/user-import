@@ -50,6 +50,7 @@ final class UserImportTest extends TestCase {
 				'user_login' => 'member-17',
 				'user_email' => 'member@example.com',
 				'user_pass'  => 'generated-password',
+				'notify'     => 'none',
 				'first_name' => 'Alex',
 				'role'       => 'subscriber',
 			),
