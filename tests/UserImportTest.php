@@ -95,6 +95,49 @@ final class UserImportTest extends TestCase {
 		);
 	}
 
+	public function test_import_page_renders_step_one_instructions_and_upload_action(): void {
+		ob_start();
+		User_Import_Plugin::render_import_page();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'Step 1:', $html );
+		$this->assertStringContainsString( 'Drop a CSV file here', $html );
+		$this->assertStringContainsString( 'Continue to column mapping', $html );
+		$this->assertStringContainsString( 'name="user_import_action" value="upload_csv"', $html );
+	}
+
+	public function test_mapping_fields_include_ultimate_member_and_acf_fields(): void {
+		$GLOBALS['user_import_test_state']['um_fields'] = array(
+			'um_member_number' => array(
+				'title' => 'Member Number',
+				'metakey' => 'um_member_number',
+			),
+		);
+		$GLOBALS['user_import_test_state']['acf_groups'] = array(
+			array(
+				'key' => 'group_user_profile',
+				'location' => array(
+					array(
+						array( 'param' => 'user_form' ),
+					),
+				),
+			),
+		);
+		$GLOBALS['user_import_test_state']['acf_fields']['group_user_profile'] = array(
+			array(
+				'name'  => 'preferred_chord',
+				'label' => 'Preferred Chord',
+			),
+		);
+
+		$method = new ReflectionMethod( User_Import_Plugin::class, 'get_mapping_fields' );
+		$method->setAccessible( true );
+		$fields = $method->invoke( null );
+
+		$this->assertSame( 'UM: Member Number', $fields['meta:um_member_number'] );
+		$this->assertSame( 'ACF: Preferred Chord', $fields['meta:preferred_chord'] );
+	}
+
 	private function create_csv( string $contents ): string {
 		$file = tempnam( sys_get_temp_dir(), 'user-import-test-' );
 		file_put_contents( $file, $contents );

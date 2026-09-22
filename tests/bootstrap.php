@@ -15,6 +15,18 @@ class WP_Error {
 	}
 }
 
+class User_Import_Test_Um_Fields {
+	public function get_fields(): array {
+		return $GLOBALS['user_import_test_state']['um_fields'];
+	}
+}
+
+class User_Import_Test_Um {
+	public function fields(): User_Import_Test_Um_Fields {
+		return new User_Import_Test_Um_Fields();
+	}
+}
+
 $GLOBALS['user_import_test_state'] = array(
 	'inserted_users' => array(),
 	'user_meta'      => array(),
@@ -22,6 +34,9 @@ $GLOBALS['user_import_test_state'] = array(
 	'existing_users' => array(),
 	'existing_emails' => array(),
 	'user_register_hooks_disabled' => array(),
+	'um_fields' => array(),
+	'acf_groups' => array(),
+	'acf_fields' => array(),
 );
 
 function add_action( string $hook, $callback ): void {}
@@ -32,6 +47,7 @@ function wp_enqueue_style( ...$args ): void {}
 function plugin_dir_url( string $file ): string { return ''; }
 function __( string $text, string $domain = 'default' ): string { return $text; }
 function esc_html__( string $text, string $domain = 'default' ): string { return $text; }
+function esc_html_e( string $text, string $domain = 'default' ): void { echo $text; }
 function esc_html( $text ): string { return htmlspecialchars( (string) $text, ENT_QUOTES ); }
 function esc_attr__( string $text, string $domain = 'default' ): string { return $text; }
 function esc_attr( $text ): string { return htmlspecialchars( (string) $text, ENT_QUOTES ); }
@@ -41,6 +57,10 @@ function wp_unslash( $value ) { return $value; }
 function sanitize_key( string $value ): string { return preg_replace( '/[^a-z0-9_\-:]/', '', strtolower( $value ) ); }
 function sanitize_user( string $value, bool $strict = false ): string { return preg_replace( '/[^a-z0-9_\-\.]/i', '', $value ); }
 function sanitize_text_field( string $value ): string { return trim( strip_tags( $value ) ); }
+function esc_textarea( $value ): string { return htmlspecialchars( (string) $value, ENT_QUOTES ); }
+function wp_json_encode( $value ): string { return json_encode( $value ); }
+function selected( $selected, $current ): void { if ( (string) $selected === (string) $current ) { echo ' selected="selected"'; } }
+function get_option( string $key, $default = false ) { return $GLOBALS['user_import_test_state']['options'][ $key ] ?? $default; }
 function sanitize_email( string $value ): string { return trim( $value ); }
 function is_email( string $value ): bool { return false !== filter_var( $value, FILTER_VALIDATE_EMAIL ); }
 function username_exists( string $username ): bool { return in_array( $username, $GLOBALS['user_import_test_state']['existing_users'], true ); }
@@ -68,5 +88,9 @@ function is_wp_error( $value ): bool { return $value instanceof WP_Error; }
 function wp_die( string $message ): void { throw new RuntimeException( $message ); }
 function wp_nonce_field( string $action ): void {}
 function submit_button( string $text, string $type, string $name ): void {}
+
+function UM(): User_Import_Test_Um { return new User_Import_Test_Um(); }
+function acf_get_field_groups(): array { return $GLOBALS['user_import_test_state']['acf_groups']; }
+function acf_get_fields( $group ): array { return $GLOBALS['user_import_test_state']['acf_fields'][ $group['key'] ?? '' ] ?? array(); }
 
 require_once dirname( __DIR__ ) . '/user-import.php';

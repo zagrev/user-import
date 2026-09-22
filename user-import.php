@@ -96,7 +96,7 @@ final class User_Import_Plugin {
 	 * @return array<string, string> User field keys and labels.
 	 */
 	private static function get_mapping_fields(): array {
-		return array(
+		$fields = array(
 			'user_login'    => __( 'Username', 'user-import' ),
 			'user_email'    => __( 'Email', 'user-import' ),
 			'user_pass'     => __( 'Password', 'user-import' ),
@@ -110,6 +110,118 @@ final class User_Import_Plugin {
 			'locale'        => __( 'Locale', 'user-import' ),
 			'role'          => __( 'Role', 'user-import' ),
 		);
+
+		foreach ( self::get_ultimate_member_fields() as $field_name => $label ) {
+			$fields[ 'meta:' . $field_name ] = sprintf( __( 'UM: %s', 'user-import' ), $label );
+		}
+
+		foreach ( self::get_acf_user_fields() as $field_name => $label ) {
+			$fields[ 'meta:' . $field_name ] = sprintf( __( 'ACF: %s', 'user-import' ), $label );
+		}
+
+		return $fields;
+	}
+
+	/**
+	 * Discover Ultimate Member custom fields when the plugin is active.
+	 *
+	 * @return array<string, string> Field keys and labels.
+	 */
+	private static function get_ultimate_member_fields(): array {
+		if ( ! function_exists( 'UM' ) ) {
+			return array();
+		}
+
+		try {
+			$ultimate_member = \UM();
+			if ( ! is_object( $ultimate_member ) ) {
+				return array();
+			}
+
+			$raw_fields = array();
+			if ( method_exists( $ultimate_member, 'options' ) && function_exists( 'um_get_form_fields' ) ) {
+				$options = $ultimate_member->options();
+				$core_form = is_object( $options ) && method_exists( $options, 'get' ) ? $options->get( 'core_profile' ) : '';
+				if ( $core_form ) {
+					$raw_fields = (array) \um_get_form_fields( $core_form );
+				}
+			}
+
+			if ( empty( $raw_fields ) && method_exists( $ultimate_member, 'fields' ) ) {
+                $field_manager = $ultimate_member->fields();
+				if ( is_object( $field_manager ) && method_exists( $field_manager, 'all_fields' ) ) {
+					$raw_fields = $field_manager->all_fields();
+				} elseif ( is_object( $field_manager ) && method_exists( $field_manager, 'get_fields' ) ) {
+					$raw_fields = $field_manager->get_fields();
+				} elseif ( is_object( $field_manager ) && method_exists( $field_manager, 'get_all_user_fields' ) ) {
+					$raw_fields = $field_manager->get_all_user_fields();
+                }
+            }
+
+			if ( empty( $raw_fields ) ) {
+				$raw_fields = get_option( 'um_fields', array() );
+			}
+            \error_log( "Ultimate Member raw fields: " . print_r( $raw_fields, true ) );
+			if ( ! is_array( $raw_fields ) ) {
+				return array();
+			}
+
+			$fields = array();
+			foreach ( $raw_fields as $field_name => $field ) {
+				if ( is_array( $field ) ) {
+					$field_name = (string) ( $field['metakey'] ?? $field['id'] ?? $field_name );
+					$label      = (string) ( $field['title'] ?? $field['label'] ?? $field_name );
+				} else {
+					$label = (string) $field_name;
+				}
+
+				$field_name = sanitize_key( $field_name );
+				if ( '' !== $field_name ) {
+					$fields[ $field_name ] = $label;
+				}
+			}
+
+			return $fields;
+		} catch ( \Throwable $exception ) {
+			return array();
+		}
+	}
+
+	/**
+	 * Discover ACF fields attached to user forms or user roles.
+	 *
+	 * @return array<string, string> Field keys and labels.
+	 */
+	private static function get_acf_user_fields(): array {
+		if ( ! function_exists( 'acf_get_field_groups' ) || ! function_exists( 'acf_get_fields' ) ) {
+			return array();
+		}
+
+		$fields = array();
+		foreach ( (array) acf_get_field_groups() as $group ) {
+			$locations = $group['location'] ?? array();
+			$is_user_group = false;
+			foreach ( $locations as $location_group ) {
+				foreach ( $location_group as $location ) {
+					if ( in_array( (string) ( $location['param'] ?? '' ), array( 'user_form', 'user_role', 'user' ), true ) ) {
+						$is_user_group = true;
+					}
+				}
+			}
+
+			if ( ! $is_user_group ) {
+				continue;
+			}
+
+			foreach ( (array) acf_get_fields( $group ) as $field ) {
+				$name = sanitize_key( (string) ( $field['name'] ?? '' ) );
+				if ( '' !== $name ) {
+					$fields[ $name ] = (string) ( $field['label'] ?? $name );
+				}
+			}
+		}
+
+		return $fields;
 	}
 
 	/**
@@ -180,6 +292,9 @@ final class User_Import_Plugin {
 					update_option( self::MAPPINGS_OPTION, $saved_mappings );
 					$selected_mapping = $mapping_name;
 					$mapping          = $saved_mappings[ $mapping_name ];
+					if ( 'import' === $mode && '' !== $pending_token ) {
+						$wizard_step = 'mapping';
+					}
 					$notice = __( 'Mapping saved.', 'user-import' );
 				}
 			} elseif ( 'back_to_upload' === $action && 'import' === $mode ) {
@@ -227,6 +342,16 @@ final class User_Import_Plugin {
 			<h1><?php echo esc_html( 'export' === $mode ? __( 'Export Users', 'user-import' ) : __( 'Import Users', 'user-import' ) ); ?></h1>
 			<?php if ( 'import' === $mode ) : ?>
 				<h2 class="user-import-step-heading"><?php echo esc_html( 'Step ' . ( 'upload' === $wizard_step ? '1' : ( 'mapping' === $wizard_step ? '2' : '3' ) ) . ': ' . ( 'upload' === $wizard_step ? 'Choose a CSV file.' : ( 'mapping' === $wizard_step ? 'Map CSV columns to WordPress fields.' : 'Review the import activity and summary.' ) ) ); ?></h2>
+				<?php if ( 'upload' === $wizard_step ) : ?>
+					<div class="user-import-step-instructions">
+						<p><?php esc_html_e( 'Start by selecting the CSV file you want to import.', 'user-import' ); ?></p>
+						<ul>
+							<li><?php esc_html_e( 'The first row should contain your CSV column headings.', 'user-import' ); ?></li>
+							<li><?php esc_html_e( 'On the next step, drag CSV columns onto WordPress fields to create the mapping.', 'user-import' ); ?></li>
+							<li><?php esc_html_e( 'Map columns to both Username and Email; existing users will be updated without changing those identity fields.', 'user-import' ); ?></li>
+						</ul>
+					</div>
+				<?php endif; ?>
 			<?php else : ?>
 				<p><?php esc_html_e( 'Upload a CSV and map its columns to generate a new CSV.', 'user-import' ); ?></p>
 			<?php endif; ?>
@@ -273,7 +398,7 @@ final class User_Import_Plugin {
 				<?php endif; ?>
 				<?php if ( '' !== $pending_token ) : ?>
 					<input type="hidden" name="user_import_pending_token" value="<?php echo esc_attr( $pending_token ); ?>">
-					<p class="description"><?php esc_html_e( 'The uploaded CSV is being retained for this retry. Choose a new file to replace it.', 'user-import' ); ?></p>
+					<p class="description"><?php esc_html_e( 'The uploaded CSV is being retained for this import. Choose a new file to replace it.', 'user-import' ); ?></p>
 				<?php endif; ?>
 				<table class="form-table" role="presentation">
 					<?php if ( 'upload' === $wizard_step || 'export' === $mode ) : ?>
@@ -391,7 +516,7 @@ final class User_Import_Plugin {
 		if ( false === $handle ) {
 			return array();
 		}
-		$headers = fgetcsv( $handle );
+		$headers = fgetcsv( stream: $handle, escape: '\\' );
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Closing the temporary CSV header stream.
 		fclose( $handle );
 		return false === $headers ? array() : array_map( static fn( $header ): string => trim( (string) $header ), $headers );
@@ -686,7 +811,7 @@ final class User_Import_Plugin {
 	}
 
 	/**
-	 * Whether a file is a retained retry upload.
+	 * Whether a file is a    retry upload.
 	 *
 	 * @param string $path File path.
 	 * @return bool

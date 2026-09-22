@@ -1,13 +1,29 @@
 .user-import-mapping-panels {
 	position: relative;
 	display: grid;
-	grid-template-columns: minmax(180px, 0.8fr) minmax(280px, 1.2fr);
-	gap: 24px;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	gap: 72px;
 	max-width: 900px;
 }
 
 .user-import-step-heading {
 	margin: 16px 0;
+}
+
+.user-import-step-instructions {
+	background: #f6f7f7;
+	border-left: 4px solid #2271b1;
+	margin: 0 0 20px;
+	max-width: 720px;
+	padding: 10px 16px;
+}
+
+.user-import-step-instructions p {
+	margin-top: 0;
+}
+
+.user-import-step-instructions ul {
+	margin-bottom: 0;
 }
 
 .user-import-mapping-lines {
