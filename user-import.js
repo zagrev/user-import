@@ -7,8 +7,10 @@
 	const mappingBuilder = document.getElementById( 'user-import-mapping-builder' );
 	const fieldsContainer = document.getElementById( 'user-import-fields' );
 	const savedMappingSelect = document.getElementById( 'user-import-saved-mapping' );
+	const mappingPanels = document.getElementById( 'user-import-mapping-panels' );
+	const mappingLines = document.getElementById( 'user-import-mapping-lines' );
 
-	if ( ! fileInput || ! mappingInput || ! columnsContainer || ! mappingBuilder || ! fieldsContainer ) {
+	if ( ! mappingInput || ! columnsContainer || ! mappingBuilder || ! fieldsContainer ) {
 		return;
 	}
 
@@ -61,6 +63,34 @@
 		mappingBuilder.querySelectorAll( '[data-user-field]' ).forEach( ( field ) => {
 			field.classList.toggle( 'is-mapped', Array.from( columnsContainer.querySelectorAll( '[data-assigned-field]' ) ).some( ( assigned ) => assigned.dataset.assignedField === field.dataset.userField ) );
 		} );
+		drawMappingLines();
+	};
+
+	const drawMappingLines = () => {
+		if ( ! mappingPanels || ! mappingLines ) {
+			return;
+		}
+
+		const panelRect = mappingPanels.getBoundingClientRect();
+		mappingLines.setAttribute( 'viewBox', `0 0 ${ panelRect.width } ${ panelRect.height }` );
+		mappingLines.innerHTML = '';
+
+		columnsContainer.querySelectorAll( '[data-assigned-field]' ).forEach( ( assigned ) => {
+			const column = assigned.closest( '[data-column-index]' );
+			const field = fieldsContainer.querySelector( `[data-user-field="${ assigned.dataset.assignedField }"]` );
+			if ( ! column || ! field ) {
+				return;
+			}
+
+			const columnRect = column.getBoundingClientRect();
+			const fieldRect = field.getBoundingClientRect();
+			const line = document.createElementNS( 'http://www.w3.org/2000/svg', 'line' );
+			line.setAttribute( 'x1', String( columnRect.right - panelRect.left ) );
+			line.setAttribute( 'y1', String( columnRect.top + ( columnRect.height / 2 ) - panelRect.top ) );
+			line.setAttribute( 'x2', String( fieldRect.left - panelRect.left ) );
+			line.setAttribute( 'y2', String( fieldRect.top + ( fieldRect.height / 2 ) - panelRect.top ) );
+			mappingLines.appendChild( line );
+		} );
 	};
 
 	const removeAssignment = ( fieldName ) => {
@@ -98,6 +128,28 @@
 		updateMapping();
 	};
 
+	const enableFieldDrop = ( field ) => {
+		field.addEventListener( 'dragover', ( event ) => {
+			if ( event.dataTransfer.types.includes( 'application/x-user-import-column' ) ) {
+				event.preventDefault();
+				field.classList.add( 'is-dragging-over' );
+			}
+		} );
+		field.addEventListener( 'dragleave', () => field.classList.remove( 'is-dragging-over' ) );
+		field.addEventListener( 'drop', ( event ) => {
+			if ( ! event.dataTransfer.types.includes( 'application/x-user-import-column' ) ) {
+				return;
+			}
+			event.preventDefault();
+			field.classList.remove( 'is-dragging-over' );
+			const columnIndex = event.dataTransfer.getData( 'text/plain' );
+			const column = Array.from( columnsContainer.querySelectorAll( '[data-column-index]' ) ).find( ( item ) => item.dataset.columnIndex === columnIndex );
+			if ( column ) {
+				assignField( column, field );
+			}
+		} );
+	};
+
 	const applyMapping = () => {
 		const mapping = mappingInput.value;
 		columnsContainer.querySelectorAll( '[data-assigned-field]' ).forEach( ( assigned ) => assigned.remove() );
@@ -132,12 +184,18 @@
 			column.className = 'user-import-column';
 			column.dataset.columnIndex = index;
 			column.dataset.columnHeader = header;
+			const dragIcon = document.createElement( 'span' );
+			dragIcon.className = 'dashicons dashicons-move user-import-drag-icon';
+			dragIcon.setAttribute( 'aria-hidden', 'true' );
 			const label = document.createElement( 'strong' );
 			label.textContent = `${ index }: ${ header || '(blank header)' }`;
-			const dropZone = document.createElement( 'span' );
-			dropZone.className = 'user-import-drop-zone';
-			dropZone.textContent = 'Drop a field here';
-			column.append( label, dropZone );
+			column.append( dragIcon, label );
+			column.draggable = true;
+			column.addEventListener( 'dragstart', ( event ) => {
+				event.dataTransfer.setData( 'text/plain', String( index ) );
+				event.dataTransfer.setData( 'application/x-user-import-column', 'true' );
+				event.dataTransfer.effectAllowed = 'copy';
+			} );
 			column.addEventListener( 'dragover', ( event ) => {
 				event.preventDefault();
 				column.classList.add( 'is-dragging-over' );
@@ -158,6 +216,7 @@
 	};
 
 	mappingBuilder.querySelectorAll( '[data-user-field]' ).forEach( ( field ) => {
+		enableFieldDrop( field );
 		field.addEventListener( 'dragstart', ( event ) => {
 			event.dataTransfer.setData( 'text/plain', field.dataset.userField );
 			event.dataTransfer.setData( 'application/x-user-import-field', 'true' );
@@ -181,15 +240,17 @@
 		removeAssignment( event.dataTransfer.getData( 'text/plain' ) );
 	} );
 
-	fileInput.addEventListener( 'change', () => {
-		const file = fileInput.files[ 0 ];
-		if ( ! file ) {
-			return;
-		}
-		const reader = new FileReader();
-		reader.addEventListener( 'load', () => renderColumns( parseCsvHeader( String( reader.result ).split( /\r?\n/, 1 )[ 0 ] ) ) );
-		reader.readAsText( file );
-	} );
+	if ( fileInput ) {
+		fileInput.addEventListener( 'change', () => {
+			const file = fileInput.files[ 0 ];
+			if ( ! file ) {
+				return;
+			}
+			const reader = new FileReader();
+			reader.addEventListener( 'load', () => renderColumns( parseCsvHeader( String( reader.result ).split( /\r?\n/, 1 )[ 0 ] ) ) );
+			reader.readAsText( file );
+		} );
+	}
 
 	mappingInput.addEventListener( 'input', () => {
 		if ( mappingInput.value.trim() ) {
@@ -208,5 +269,12 @@
 				applyMapping();
 			}
 		} );
+	}
+
+	window.addEventListener( 'resize', drawMappingLines );
+
+	const initialHeaders = columnsContainer.dataset.csvHeaders ? JSON.parse( columnsContainer.dataset.csvHeaders ) : [];
+	if ( initialHeaders.length ) {
+		renderColumns( initialHeaders );
 	}
 }() );

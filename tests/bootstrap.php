@@ -18,11 +18,14 @@ class WP_Error {
 $GLOBALS['user_import_test_state'] = array(
 	'inserted_users' => array(),
 	'user_meta'      => array(),
+	'updated_users'  => array(),
 	'existing_users' => array(),
 	'existing_emails' => array(),
+	'user_register_hooks_disabled' => array(),
 );
 
 function add_action( string $hook, $callback ): void {}
+function remove_all_actions( string $hook ): void { unset( $GLOBALS['wp_filter'][ $hook ] ); }
 function add_users_page( ...$args ): string { return 'users_page_user-import'; }
 function wp_enqueue_script( ...$args ): void {}
 function wp_enqueue_style( ...$args ): void {}
@@ -47,7 +50,16 @@ function get_role( string $role ) { return in_array( $role, array( 'subscriber',
 function wp_insert_user( array $user_data ) {
 	$id = count( $GLOBALS['user_import_test_state']['inserted_users'] ) + 1;
 	$GLOBALS['user_import_test_state']['inserted_users'][ $id ] = $user_data;
+	$GLOBALS['user_import_test_state']['user_register_hooks_disabled'][] = ! isset( $GLOBALS['wp_filter']['user_register'] );
 	return $id;
+}
+function get_user_by( string $field, string $value ) {
+	$matches = 'login' === $field ? $GLOBALS['user_import_test_state']['existing_users'] : $GLOBALS['user_import_test_state']['existing_emails'];
+	return in_array( $value, $matches, true ) ? (object) array( 'ID' => 7 ) : false;
+}
+function wp_update_user( array $user_data ) {
+	$GLOBALS['user_import_test_state']['updated_users'][] = $user_data;
+	return $user_data['ID'];
 }
 function update_user_meta( int $user_id, string $key, string $value ): void {
 	$GLOBALS['user_import_test_state']['user_meta'][ $user_id ][ $key ] = $value;

@@ -13,8 +13,13 @@ final class UserImportTest extends TestCase {
 		$GLOBALS['user_import_test_state'] = array(
 			'inserted_users'  => array(),
 			'user_meta'       => array(),
+			'updated_users'   => array(),
 			'existing_users'  => array(),
 			'existing_emails' => array(),
+			'user_register_hooks_disabled' => array(),
+		);
+		$GLOBALS['wp_filter'] = array(
+			'user_register' => array( 'test_callback' => true ),
 		);
 
 		$this->import_csv = new ReflectionMethod( User_Import_Plugin::class, 'import_csv' );
@@ -43,6 +48,7 @@ final class UserImportTest extends TestCase {
 		);
 
 		$this->assertSame( 1, $result['imported'] );
+		$this->assertSame( 0, $result['updated'] );
 		$this->assertSame( 0, $result['skipped'] );
 		$this->assertSame( array(), $result['errors'] );
 		$this->assertSame(
@@ -57,6 +63,8 @@ final class UserImportTest extends TestCase {
 			$GLOBALS['user_import_test_state']['inserted_users'][1]
 		);
 		$this->assertSame( 'ABC-17', $GLOBALS['user_import_test_state']['user_meta'][1]['membership_id'] );
+		$this->assertSame( array( true ), $GLOBALS['user_import_test_state']['user_register_hooks_disabled'] );
+		$this->assertArrayHasKey( 'user_register', $GLOBALS['wp_filter'] );
 	}
 
 	public function test_import_rejects_mapping_without_required_fields(): void {
@@ -68,15 +76,23 @@ final class UserImportTest extends TestCase {
 		$this->assertSame( 'Map columns to both user_login and user_email.', $result['errors'][0] );
 	}
 
-	public function test_import_skips_existing_username_or_email(): void {
+	public function test_import_updates_existing_user_without_changing_identity_fields(): void {
 		$GLOBALS['user_import_test_state']['existing_users'] = array( 'member-17' );
-		$file = $this->create_csv( "user_login,user_email\nmember-17,member@example.com\n" );
+		$file = $this->create_csv( "user_login,user_email,display_name,first_name,user_pass\nmember-17,member@example.com,Alex Member,Alex,new-password\n" );
 
-		$result = $this->invoke_import( $file, '' );
+		$result = $this->invoke_import( $file, "user_login=user_login\nuser_email=user_email\ndisplay_name=display_name\nfirst_name=first_name\nuser_pass=user_pass" );
 
 		$this->assertSame( 0, $result['imported'] );
-		$this->assertSame( 1, $result['skipped'] );
+		$this->assertSame( 1, $result['updated'] );
 		$this->assertSame( array(), $result['errors'] );
+		$this->assertSame(
+			array(
+				'ID'           => 7,
+				'display_name' => 'Alex Member',
+				'first_name'   => 'Alex',
+			),
+			$GLOBALS['user_import_test_state']['updated_users'][0]
+		);
 	}
 
 	private function create_csv( string $contents ): string {

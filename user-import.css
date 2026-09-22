@@ -1,8 +1,70 @@
 .user-import-mapping-panels {
+	position: relative;
 	display: grid;
 	grid-template-columns: minmax(180px, 0.8fr) minmax(280px, 1.2fr);
 	gap: 24px;
 	max-width: 900px;
+}
+
+.user-import-step-heading {
+	margin: 16px 0;
+}
+
+.user-import-mapping-lines {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+	overflow: visible;
+	z-index: 0;
+}
+
+.user-import-mapping-lines line {
+	stroke: #8c8f94;
+	stroke-width: 2;
+	stroke-dasharray: 5 4;
+}
+
+.user-import-mapping-panels > div:not(.user-import-mapping-lines) {
+	position: relative;
+	z-index: 1;
+}
+
+.user-import-saved-mapping-area {
+	border: 1px solid #c3c4c7;
+	margin: 0 0 16px;
+	max-width: 900px;
+	padding: 10px 12px 12px;
+}
+
+.user-import-saved-mapping-area legend {
+	font-weight: 600;
+	padding: 0 6px;
+}
+
+.user-import-upload-dropzone {
+	border: 2px dashed #8c8f94;
+	background: #f6f7f7;
+	box-sizing: border-box;
+	cursor: pointer;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	max-width: 520px;
+	padding: 24px;
+	text-align: center;
+}
+
+.user-import-upload-dropzone span {
+	color: #646970;
+	font-size: 13px;
+}
+
+.user-import-upload-dropzone.is-dragging-over,
+.user-import-upload-dropzone.has-file {
+	border-color: #2271b1;
+	background: #e7f3ff;
 }
 
 .user-import-mapping-panels h3 {
@@ -32,6 +94,15 @@
 	text-align: left;
 }
 
+.user-import-drag-icon {
+	color: #646970;
+	cursor: grab;
+	flex: 0 0 auto;
+	font-size: 18px;
+	height: 18px;
+	width: 18px;
+}
+
 .user-import-field {
 	cursor: grab;
 	width: 100%;
@@ -47,10 +118,14 @@
 	color: #646970;
 }
 
+.user-import-field.is-dragging-over {
+	border-color: #2271b1;
+	box-shadow: 0 0 0 1px #2271b1;
+}
+
 .user-import-column {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
 	gap: 12px;
 	min-height: 42px;
 }
@@ -58,12 +133,6 @@
 .user-import-column.is-dragging-over {
 	border-color: #2271b1;
 	box-shadow: 0 0 0 1px #2271b1;
-}
-
-.user-import-drop-zone {
-	color: #646970;
-	font-size: 12px;
-	font-style: italic;
 }
 
 .user-import-assigned-field {
