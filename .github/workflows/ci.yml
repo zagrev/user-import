@@ -11,11 +11,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  lint:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         php-version: ["8.0", "8.4"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up PHP ${{ matrix.php-version }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          coverage: none
+
+      - name: Check PHP syntax
+        run: php -l user-import.php && php -l uninstall.php && php -l tests/UserImportTest.php
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # phpunit/phpunit ^13.0 requires PHP 8.4+.
+        php-version: ["8.4"]
 
     steps:
       - name: Checkout repository
@@ -33,9 +53,6 @@ jobs:
 
       - name: Validate Composer manifest
         run: composer validate --no-check-publish
-
-      - name: Check PHP syntax
-        run: composer run-script lint
 
       - name: Run PHPUnit
         run: vendor/bin/phpunit -c phpunit.xml
