@@ -1,0 +1,109 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    types:
+      - closed
+
+jobs:
+  release:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set release version
+        id: version
+        run: |
+          CURRENT_VERSION=$(sed -nE 's/^ \* Version: ([0-9]+\.[0-9]+\.[0-9]+)$/\1/p' user-import.php)
+          test -n "$CURRENT_VERSION"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="$CURRENT_VERSION"
+          else
+            LATEST_TAG=$(git tag --list 'v[0-9]*' --sort=-version:refname | head -n 1)
+            LATEST_VERSION="${LATEST_TAG#v}"
+            if [ -z "$LATEST_TAG" ]; then
+              LATEST_VERSION="$CURRENT_VERSION"
+            fi
+            IFS=. read -r MAJOR MINOR PATCH <<< "$LATEST_VERSION"
+            VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+
+            sed -i -E "s/^ \* Version: .*/ * Version: ${VERSION}/" user-import.php
+            sed -i -E "s/^Stable tag: .*/Stable tag: ${VERSION}/" readme.txt
+          fi
+
+          grep -F "Version: $VERSION" user-import.php
+          grep -F "Stable tag: $VERSION" readme.txt
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and tag release version
+        if: github.event_name != 'workflow_dispatch'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add user-import.php readme.txt
+          git commit -m "chore: release v${VERSION}"
+          git tag "v${VERSION}"
+          git push origin main "v${VERSION}"
+
+      - name: Ensure manual release tag
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if git ls-remote --exit-code --tags origin "v${VERSION}"; then
+            exit 0
+          fi
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
+
+      - name: Create plugin artifact
+        id: package
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          PACKAGE_DIR="$RUNNER_TEMP/user-import"
+          PACKAGE_ZIP="$RUNNER_TEMP/user-import-${VERSION}.zip"
+          mkdir "$PACKAGE_DIR"
+          rsync -a ./ "$PACKAGE_DIR/" \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='.gitignore' \
+            --exclude='.phpunit.result.cache' \
+            --exclude='tests/' \
+            --exclude='vendor/' \
+            --exclude='composer.json' \
+            --exclude='composer.lock' \
+            --exclude='phpunit.xml'
+          cd "$RUNNER_TEMP"
+          zip -r "$PACKAGE_ZIP" "user-import"
+          sha256sum "$PACKAGE_ZIP"
+          echo "path=$PACKAGE_ZIP" >> "$GITHUB_OUTPUT"
+
+      - name: Upload plugin artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: user-import-${{ steps.version.outputs.version }}
+          path: ${{ steps.package.outputs.path }}
+          archive: false
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          files: ${{ steps.package.outputs.path }}
