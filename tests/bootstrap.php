@@ -27,6 +27,12 @@ class User_Import_Test_Um {
 	}
 }
 
+class User_Import_Test_Roles {
+	public function get_names(): array {
+		return array( 'subscriber' => 'Subscriber', 'um_member' => 'Member' );
+	}
+}
+
 $GLOBALS['user_import_test_state'] = array(
 	'inserted_users' => array(),
 	'user_meta'      => array(),
@@ -34,6 +40,7 @@ $GLOBALS['user_import_test_state'] = array(
 	'existing_users' => array(),
 	'existing_emails' => array(),
 	'user_register_hooks_disabled' => array(),
+	'options'        => array(),
 	'um_fields' => array(),
 	'acf_groups' => array(),
 	'acf_fields' => array(),
@@ -50,23 +57,37 @@ function esc_html__( string $text, string $domain = 'default' ): string { return
 function esc_html_e( string $text, string $domain = 'default' ): void { echo $text; }
 function esc_html( $text ): string { return htmlspecialchars( (string) $text, ENT_QUOTES ); }
 function esc_attr__( string $text, string $domain = 'default' ): string { return $text; }
+function esc_attr_e( string $text, string $domain = 'default' ): void { echo esc_attr( $text ); }
 function esc_attr( $text ): string { return htmlspecialchars( (string) $text, ENT_QUOTES ); }
 function current_user_can( string $capability ): bool { return true; }
 function check_admin_referer( string $action ): bool { return true; }
 function wp_unslash( $value ) { return $value; }
 function sanitize_key( string $value ): string { return preg_replace( '/[^a-z0-9_\-:]/', '', strtolower( $value ) ); }
+function sanitize_file_name( string $value ): string { return preg_replace( '/[^a-zA-Z0-9._-]/', '', $value ); }
 function sanitize_user( string $value, bool $strict = false ): string { return preg_replace( '/[^a-z0-9_\-\.]/i', '', $value ); }
 function sanitize_text_field( string $value ): string { return trim( strip_tags( $value ) ); }
 function esc_textarea( $value ): string { return htmlspecialchars( (string) $value, ENT_QUOTES ); }
 function wp_json_encode( $value ): string { return json_encode( $value ); }
 function selected( $selected, $current ): void { if ( (string) $selected === (string) $current ) { echo ' selected="selected"'; } }
 function get_option( string $key, $default = false ) { return $GLOBALS['user_import_test_state']['options'][ $key ] ?? $default; }
+function update_option( string $key, $value ): bool { $GLOBALS['user_import_test_state']['options'][ $key ] = $value; return true; }
+function trailingslashit( string $value ): string { return rtrim( $value, '/\\' ) . '/'; }
+function wp_upload_dir(): array { return array( 'basedir' => sys_get_temp_dir() . '/user-import-tests' ); }
+function get_current_user_id(): int { return 1; }
 function sanitize_email( string $value ): string { return trim( $value ); }
 function is_email( string $value ): bool { return false !== filter_var( $value, FILTER_VALIDATE_EMAIL ); }
 function username_exists( string $username ): bool { return in_array( $username, $GLOBALS['user_import_test_state']['existing_users'], true ); }
 function email_exists( string $email ): bool { return in_array( $email, $GLOBALS['user_import_test_state']['existing_emails'], true ); }
 function wp_generate_password(): string { return 'generated-password'; }
 function get_role( string $role ) { return in_array( $role, array( 'subscriber', 'um_member', 'administrator' ), true ) ? (object) array( 'name' => $role ) : null; }
+function wp_roles(): User_Import_Test_Roles { return new User_Import_Test_Roles(); }
+function checked( $checked, $current = true, bool $echo = true ): string {
+	$result = $checked === $current ? ' checked="checked"' : '';
+	if ( $echo ) {
+		echo $result;
+	}
+	return $result;
+}
 function wp_insert_user( array $user_data ) {
 	$id = count( $GLOBALS['user_import_test_state']['inserted_users'] ) + 1;
 	$GLOBALS['user_import_test_state']['inserted_users'][ $id ] = $user_data;

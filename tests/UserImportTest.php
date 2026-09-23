@@ -17,6 +17,10 @@ final class UserImportTest extends TestCase {
 			'existing_users'  => array(),
 			'existing_emails' => array(),
 			'user_register_hooks_disabled' => array(),
+			'options'         => array(),
+			'um_fields'       => array(),
+			'acf_groups'      => array(),
+			'acf_fields'      => array(),
 		);
 		$GLOBALS['wp_filter'] = array(
 			'user_register' => array( 'test_callback' => true ),
@@ -106,6 +110,29 @@ final class UserImportTest extends TestCase {
 		$this->assertStringContainsString( 'name="user_import_action" value="upload_csv"', $html );
 	}
 
+	public function test_step_one_continue_is_enabled_for_retained_csv(): void {
+		$token = str_repeat( 'd', 64 );
+		$pending_directory = wp_upload_dir()['basedir'] . '/user-import-pending/';
+		if ( ! is_dir( $pending_directory ) ) {
+			mkdir( $pending_directory, 0777, true );
+		}
+		$pending_file = $pending_directory . '1-' . $token . '.csv';
+		file_put_contents( $pending_file, "Username,Email\n" );
+		$this->temporary_files[] = $pending_file;
+
+		$_POST = array(
+			'user_import_action'        => 'back_to_upload',
+			'user_import_pending_token' => $token,
+		);
+
+		ob_start();
+		User_Import_Plugin::render_import_page();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringNotContainsString( 'value="upload_csv" disabled', $html );
+		$this->assertStringNotContainsString( 'name="user_import_csv" type="file" accept=".csv,text/csv" required', $html );
+	}
+
 	public function test_mapping_fields_include_ultimate_member_and_acf_fields(): void {
 		$GLOBALS['user_import_test_state']['um_fields'] = array(
 			'um_member_number' => array(
@@ -136,6 +163,173 @@ final class UserImportTest extends TestCase {
 
 		$this->assertSame( 'UM: Member Number', $fields['meta:um_member_number'] );
 		$this->assertSame( 'ACF: Preferred Chord', $fields['meta:preferred_chord'] );
+	}
+
+	public function test_saving_mapping_keeps_import_wizard_on_mapping_step(): void {
+		$pending_directory = sys_get_temp_dir() . '/user-import-tests';
+		if ( ! is_dir( $pending_directory ) ) {
+			mkdir( $pending_directory, 0777, true );
+		}
+		$token = str_repeat( 'a', 64 );
+		$pending_file = $pending_directory . '/1-' . $token . '.csv';
+		file_put_contents( $pending_file, "Email,Username\n" );
+		$this->temporary_files[] = $pending_file;
+
+		$_POST = array(
+			'user_import_action'       => 'save_mapping',
+			'user_import_pending_token' => $token,
+			'user_import_mapping_name' => 'Members',
+			'user_import_mapping'      => "Username=user_login\nEmail=user_email",
+		);
+
+		ob_start();
+		User_Import_Plugin::render_import_page();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'Step 2:', $html );
+		$this->assertStringContainsString( 'Username=user_login', $html );
+		$this->assertStringContainsString( 'Members', $html );
+	}
+
+	public function test_mapping_step_blocks_progress_without_username_and_email(): void {
+		$token = str_repeat( 'b', 64 );
+		$pending_directory = wp_upload_dir()['basedir'] . '/user-import-pending/';
+		if ( ! is_dir( $pending_directory ) ) {
+			mkdir( $pending_directory, 0777, true );
+		}
+		$pending_file = $pending_directory . '1-' . $token . '.csv';
+		file_put_contents( $pending_file, "Email,Name\nalex@example.com,Alex\n" );
+		$this->temporary_files[] = $pending_file;
+
+		$_POST = array(
+			'user_import_action'        => 'back_to_roles',
+			'user_import_pending_token' => $token,
+			'user_import_mapping'       => 'Email=user_email',
+		);
+
+		ob_start();
+		User_Import_Plugin::render_import_page();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'Step 2:', $html );
+		$this->assertStringContainsString( 'Map columns to both user_login and user_email.', $html );
+		$this->assertStringNotContainsString( 'Step 3:', $html );
+	}
+
+	public function test_role_step_renders_selected_roles_after_valid_mapping(): void {
+		$token = str_repeat( 'c', 64 );
+		$pending_directory = wp_upload_dir()['basedir'] . '/user-import-pending/';
+		if ( ! is_dir( $pending_directory ) ) {
+			mkdir( $pending_directory, 0777, true );
+		}
+		$pending_file = $pending_directory . '1-' . $token . '.csv';
+		file_put_contents( $pending_file, "Email,Username\nalex@example.com,alex\n" );
+		$this->temporary_files[] = $pending_file;
+
+		$_POST = array(
+			'user_import_action'        => 'back_to_roles',
+			'user_import_pending_token' => $token,
+			'user_import_mapping'       => "Username=user_login\nEmail=user_email",
+			'user_import_roles'         => array( 'subscriber' ),
+		);
+
+		ob_start();
+		User_Import_Plugin::render_import_page();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'Step 3:', $html );
+		$this->assertStringContainsString( 'Select the roles to apply to every imported or updated user.', $html );
+		$this->assertStringContainsString( 'value="subscriber"', $html );
+		$this->assertStringContainsString( 'checked="checked"', $html );
+		$this->assertStringContainsString( 'Start import', $html );
+	}
+
+	public function test_wizard_round_trip_preserves_csv_mapping_name_and_roles(): void {
+		$token = str_repeat( 'e', 64 );
+		$pending_directory = wp_upload_dir()['basedir'] . '/user-import-pending/';
+		if ( ! is_dir( $pending_directory ) ) {
+			mkdir( $pending_directory, 0777, true );
+		}
+		$pending_file = $pending_directory . '1-' . $token . '.csv';
+		file_put_contents( $pending_file, "Username,Email\nalex,alex@example.com\n" );
+		$this->temporary_files[] = $pending_file;
+
+		$_POST = array(
+			'user_import_action'        => 'back_to_mapping',
+			'user_import_pending_token' => $token,
+			'user_import_mapping_name'  => 'Members',
+			'user_import_mapping'       => "Username=user_login\nEmail=user_email",
+			'user_import_roles'         => array( 'subscriber' ),
+		);
+
+		ob_start();
+		User_Import_Plugin::render_import_page();
+		$mapping_html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'Step 2:', $mapping_html );
+		$this->assertStringContainsString( 'Username=user_login', $mapping_html );
+		$this->assertStringContainsString( 'Members', $mapping_html );
+		$this->assertStringContainsString( 'name="user_import_roles[]" value="subscriber"', $mapping_html );
+
+		$_POST['user_import_action'] = 'back_to_roles';
+		ob_start();
+		User_Import_Plugin::render_import_page();
+		$roles_html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'Step 3:', $roles_html );
+		$this->assertStringContainsString( 'value="subscriber"', $roles_html );
+		$this->assertStringContainsString( 'checked="checked"', $roles_html );
+		$this->assertStringContainsString( 'Members', $roles_html );
+	}
+
+	public function test_retained_csv_survives_step_two_to_step_one_and_back(): void {
+		$token = str_repeat( 'f', 64 );
+		$pending_directory = wp_upload_dir()['basedir'] . '/user-import-pending/';
+		if ( ! is_dir( $pending_directory ) ) {
+			mkdir( $pending_directory, 0777, true );
+		}
+		$pending_file = $pending_directory . '1-' . $token . '.csv';
+		file_put_contents( $pending_file, "Username,Email\nalex,alex@example.com\n" );
+		$this->temporary_files[] = $pending_file;
+
+		// Step 2 -> step 1: mapping, mapping name, and roles must ride along in the hidden fields.
+		$_POST = array(
+			'user_import_action'          => 'back_to_upload',
+			'user_import_pending_token'   => $token,
+			'user_import_pending_filename' => 'members.csv',
+			'user_import_mapping_name'    => 'Members',
+			'user_import_mapping'         => "Username=user_login\nEmail=user_email",
+			'user_import_roles'           => array( 'subscriber' ),
+		);
+
+		ob_start();
+		User_Import_Plugin::render_import_page();
+		$upload_html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'Step 1:', $upload_html );
+		$this->assertStringContainsString( 'Retained CSV:', $upload_html );
+		$this->assertStringContainsString( 'members.csv', $upload_html );
+		$this->assertStringNotContainsString( 'value="upload_csv" disabled', $upload_html );
+		$this->assertStringNotContainsString( 'name="user_import_csv" type="file" accept=".csv,text/csv" required', $upload_html );
+		$this->assertStringContainsString( 'name="user_import_mapping" value="Username=user_login', $upload_html );
+		$this->assertStringContainsString( 'Email=user_email"', $upload_html );
+		$this->assertStringContainsString( 'name="user_import_mapping_name" value="Members"', $upload_html );
+		$this->assertStringContainsString( 'name="user_import_roles[]" value="subscriber"', $upload_html );
+
+		// Step 1 -> step 2 without choosing a new file: the retained token, mapping, name, and roles must all persist.
+		$_POST['user_import_action'] = 'upload_csv';
+		unset( $_FILES['user_import_csv'] );
+
+		ob_start();
+		User_Import_Plugin::render_import_page();
+		$mapping_html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'Step 2:', $mapping_html );
+		$this->assertStringContainsString( 'Username=user_login', $mapping_html );
+		$this->assertStringContainsString( 'name="user_import_mapping_name" ', $mapping_html );
+		$this->assertStringContainsString( 'value="Members"', $mapping_html );
+		$this->assertStringContainsString( 'name="user_import_roles[]" value="subscriber"', $mapping_html );
+		$this->assertStringContainsString( 'data-csv-headers="[&quot;Username&quot;,&quot;Email&quot;]"', $mapping_html );
 	}
 
 	private function create_csv( string $contents ): string {

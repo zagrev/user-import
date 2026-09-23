@@ -26,6 +26,13 @@
 	margin-bottom: 0;
 }
 
+.user-import-mapping-builder .notice-error,
+.user-import-mapping-builder + .notice-error,
+.wrap > .notice-error {
+	border-left-color: #d63638;
+	color: #8a2424;
+}
+
 .user-import-mapping-lines {
 	position: absolute;
 	inset: 0;

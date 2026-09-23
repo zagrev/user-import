@@ -7,6 +7,7 @@
 	const mappingBuilder = document.getElementById( 'user-import-mapping-builder' );
 	const fieldsContainer = document.getElementById( 'user-import-fields' );
 	const savedMappingSelect = document.getElementById( 'user-import-saved-mapping' );
+	const mappingNameInput = document.getElementById( 'user-import-mapping-name' );
 	const mappingPanels = document.getElementById( 'user-import-mapping-panels' );
 	const mappingLines = document.getElementById( 'user-import-mapping-lines' );
 
@@ -264,6 +265,9 @@
 		savedMappingSelect.addEventListener( 'change', () => {
 			const selected = savedMappingSelect.options[ savedMappingSelect.selectedIndex ];
 			mappingInput.value = selected ? selected.dataset.mapping || '' : '';
+			if ( mappingNameInput ) {
+				mappingNameInput.value = selected ? selected.value : '';
+			}
 			mappingInput.dispatchEvent( new Event( 'input' ) );
 			if ( columnsContainer.querySelector( '[data-column-index]' ) ) {
 				applyMapping();

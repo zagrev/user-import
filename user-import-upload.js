@@ -15,7 +15,7 @@
 			dropzone.querySelector( 'strong' ).textContent = file.name;
 			dropzone.classList.add( 'has-file' );
 		}
-		if ( continueButton ) {
+		if ( continueButton && file ) {
 			continueButton.disabled = ! file;
 		}
 	};
