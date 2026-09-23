@@ -2,7 +2,7 @@
 /**
  * Plugin Name: User Import
  * Description: Import WordPress users from a CSV file.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: Steve Betts
  * Requires PHP: 8.0
  * Text Domain: user-import
