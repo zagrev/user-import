@@ -27,7 +27,9 @@ final class UserImportTest extends TestCase {
 		);
 
 		$this->import_csv = new ReflectionMethod( User_Import_Plugin::class, 'import_csv' );
-		$this->import_csv->setAccessible( true );
+		if (\PHP_VERSION_ID < 80100) {
+			$this->import_csv->setAccessible( true );
+		}
 	}
 
 	protected function tearDown(): void {
@@ -46,9 +48,8 @@ final class UserImportTest extends TestCase {
 			"member-17,member@example.com,Alex,subscriber,ABC-17\n"
 		);
 
-		$result = $this->invoke_import(
-			$file,
-			"Email Address=user_email\n0=user_login\n2=first_name\n3=role\n4=meta:membership_id"
+		$result = $this->import_csv->invoke( null, array( 'tmp_name' => $file, 'error' => 0 ), 
+			"Email Address=user_email\n0=user_login\n2=first_name\n4=meta:membership_id"
 		);
 
 		$this->assertSame( 1, $result['imported'] );
@@ -60,9 +61,7 @@ final class UserImportTest extends TestCase {
 				'user_login' => 'member-17',
 				'user_email' => 'member@example.com',
 				'user_pass'  => 'generated-password',
-				'notify'     => 'none',
 				'first_name' => 'Alex',
-				'role'       => 'subscriber',
 			),
 			$GLOBALS['user_import_test_state']['inserted_users'][1]
 		);
@@ -81,7 +80,12 @@ final class UserImportTest extends TestCase {
 	}
 
 	public function test_import_updates_existing_user_without_changing_identity_fields(): void {
-		$GLOBALS['user_import_test_state']['existing_users'] = array( 'member-17' );
+		$test_user =  new WP_User( 7 );
+		$test_user->user_login = 'member-17';
+		$test_user->user_email = 'member@example.com';
+		$GLOBALS['user_import_test_state']['existing_users'][7] = $test_user;
+		$GLOBALS['user_import_test_state']['existing_emails'][ $test_user->user_email ] = $test_user;
+	
 		$file = $this->create_csv( "user_login,user_email,display_name,first_name,user_pass\nmember-17,member@example.com,Alex Member,Alex,new-password\n" );
 
 		$result = $this->invoke_import( $file, "user_login=user_login\nuser_email=user_email\ndisplay_name=display_name\nfirst_name=first_name\nuser_pass=user_pass" );
@@ -92,6 +96,9 @@ final class UserImportTest extends TestCase {
 		$this->assertSame(
 			array(
 				'ID'           => 7,
+				'user_login' => 'member-17', 
+				'user_email' => 'member@example.com', 
+				'user_pass' => 'new-password', 
 				'display_name' => 'Alex Member',
 				'first_name'   => 'Alex',
 			),
@@ -158,7 +165,9 @@ final class UserImportTest extends TestCase {
 		);
 
 		$method = new ReflectionMethod( User_Import_Plugin::class, 'get_mapping_fields' );
-		$method->setAccessible( true );
+		if (\PHP_VERSION_ID < 80100) {
+			$method->setAccessible( true );
+		}
 		$fields = $method->invoke( null );
 
 		$this->assertSame( 'UM: Member Number', $fields['meta:um_member_number'] );

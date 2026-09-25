@@ -16,6 +16,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once __DIR__ . '/logger.php';
+
 /**
  * Provides the user import admin page and CSV importer.
  */
@@ -31,8 +33,8 @@ final class User_Import_Plugin {
 	 * @return void
 	 */
 	public static function init(): void {
-		add_action( 'admin_menu', array( self::class, 'register_menu' ) );
-		add_action( 'admin_enqueue_scripts', array( self::class, 'enqueue_admin_assets' ) );
+		\add_action( 'admin_menu', array( self::class, 'register_menu' ) );
+		\add_action( 'admin_enqueue_scripts', array( self::class, 'enqueue_admin_assets' ) );
 	}
 
 	/**
@@ -41,14 +43,14 @@ final class User_Import_Plugin {
 	 * @return void
 	 */
 	public static function register_menu(): void {
-		add_users_page(
+		\add_users_page(
 			__( 'User Importer', 'user-import' ),
 			__( 'Import Users', 'user-import' ),
 			'create_users',
 			self::MENU_SLUG,
 			array( self::class, 'render_import_page' )
 		);
-		add_users_page(
+		\add_users_page(
 			__( 'User Exporter', 'user-import' ),
 			__( 'Export Users', 'user-import' ),
 			'create_users',
@@ -58,7 +60,7 @@ final class User_Import_Plugin {
 	}
 
 	/**
-	 * Enqueue the drag-and-drop mapping interface on the importer page.
+	 * Enqueue the drag-and-drop mapping interface on the importer and exporter pages.
 	 *
 	 * @param string $hook_suffix Current admin page hook suffix.
 	 * @return void
@@ -68,20 +70,20 @@ final class User_Import_Plugin {
 			return;
 		}
 
-		wp_enqueue_script(
+		\wp_enqueue_script(
 			'user-import-admin',
 			plugin_dir_url( __FILE__ ) . 'user-import.js',
 			array(),
 			'1.0.0',
 			true
 		);
-		wp_enqueue_style(
+		\wp_enqueue_style(
 			'user-import-admin',
 			plugin_dir_url( __FILE__ ) . 'user-import.css',
 			array(),
 			'1.0.0'
 		);
-		wp_enqueue_script(
+		\wp_enqueue_script(
 			'user-import-upload',
 			plugin_dir_url( __FILE__ ) . 'user-import-upload.js',
 			array(),
@@ -108,7 +110,6 @@ final class User_Import_Plugin {
 			'nickname'      => __( 'Nickname', 'user-import' ),
 			'description'   => __( 'Description', 'user-import' ),
 			'locale'        => __( 'Locale', 'user-import' ),
-			'role'          => __( 'Role', 'user-import' ),
 		);
 
 		foreach ( self::get_ultimate_member_fields() as $field_name => $label ) {
@@ -132,7 +133,7 @@ final class User_Import_Plugin {
 			return array();
 		}
 
-		$roles = wp_roles()->get_names();
+		$roles = \wp_roles()->get_names();
 		return is_array( $roles ) ? $roles : array();
 	}
 
@@ -602,7 +603,7 @@ final class User_Import_Plugin {
 	 * @return array<string, string> Saved mapping names and rules.
 	 */
 	private static function get_saved_mappings(): array {
-		$mappings = get_option( self::MAPPINGS_OPTION, array() );
+		$mappings = \get_option( self::MAPPINGS_OPTION, array() );
 		return is_array( $mappings ) ? array_filter( $mappings, 'is_string' ) : array();
 	}
 
@@ -645,14 +646,14 @@ final class User_Import_Plugin {
 			return '';
 		}
 
-		$upload_dir = wp_upload_dir();
-		$pending_dir = trailingslashit( $upload_dir['basedir'] ) . 'user-import-pending';
-		if ( ! wp_mkdir_p( $pending_dir ) ) {
+		$upload_dir = \wp_upload_dir();
+		$pending_dir = \trailingslashit( $upload_dir['basedir'] ) . 'user-import-pending';
+		if ( ! \wp_mkdir_p( $pending_dir ) ) {
 			return '';
 		}
 
 		$token = hash( 'sha256', wp_generate_uuid4() . microtime( true ) );
-		$path  = trailingslashit( $pending_dir ) . get_current_user_id() . '-' . $token . '.csv';
+		$path  = \trailingslashit( $pending_dir ) . get_current_user_id() . '-' . $token . '.csv';
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Copying the uploaded temporary CSV into a protected retry location.
 		if ( ! copy( $upload['tmp_name'], $path ) ) {
 			return '';
@@ -677,8 +678,8 @@ final class User_Import_Plugin {
 			return '';
 		}
 
-		$upload_dir = wp_upload_dir();
-		return trailingslashit( $upload_dir['basedir'] ) . 'user-import-pending/' . get_current_user_id() . '-' . $token . '.csv';
+		$upload_dir = \wp_upload_dir();
+		return \trailingslashit( $upload_dir['basedir'] ) . 'user-import-pending/' . \get_current_user_id() . '-' . $token . '.csv';
 	}
 
 	/**
@@ -699,18 +700,18 @@ final class User_Import_Plugin {
 	 * Export the uploaded CSV using the selected mapping.
 	 *
 	 * @param array<string, mixed> $upload Uploaded file data.
-	 * @param string              $mapping Mapping rules.
+	 * @param string $mapping Mapping rules.
 	 * @return void
 	 */
 	private static function export_csv( array $upload, string $mapping ): void {
 		if ( empty( $upload['tmp_name'] ) || ! empty( $upload['error'] ) ) {
-			wp_die( esc_html__( 'The CSV upload could not be read.', 'user-import' ) );
+			\wp_die( \esc_html__( 'The CSV upload could not be read.', 'user-import' ) );
 		}
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Reading the temporary uploaded CSV file.
 		$handle = fopen( $upload['tmp_name'], 'rb' );
 		if ( false === $handle ) {
-			wp_die( esc_html__( 'The CSV file could not be opened.', 'user-import' ) );
+			\wp_die( \esc_html__( 'The CSV file could not be opened.', 'user-import' ) );
 		}
 
 		$headers = fgetcsv( $handle );
@@ -719,7 +720,7 @@ final class User_Import_Plugin {
 		if ( is_wp_error( $column_mapping ) ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Closing the temporary uploaded CSV file.
 			fclose( $handle );
-			wp_die( esc_html( $column_mapping->get_error_message() ) );
+			\wp_die( \esc_html( $column_mapping->get_error_message() ) );
 		}
 
 		nocache_headers();
@@ -753,6 +754,8 @@ final class User_Import_Plugin {
 	 * @return array{imported: int, updated: int, skipped: int, errors: string[]}|WP_Error
 	 */
 	private static function import_csv( array $upload, string $mapping = '', array &$activity = array(), array $selected_roles = array() ): array {
+		$logger = DmbcLogger::get_instance();
+        $logger->info( sprintf( 'Starting CSV import: uploaded data: %s, mapping: %s, selected roles: %s', \wp_json_encode( $upload ), $mapping, \wp_json_encode( $selected_roles ) ) );
 		$user_register_hook = 'user_register';
 		$results = array(
 			'imported' => 0,
@@ -762,14 +765,14 @@ final class User_Import_Plugin {
 		);
 
 		if ( empty( $upload['tmp_name'] ) || ! empty( $upload['error'] ) ) {
-			$results['errors'][] = __( 'The CSV upload could not be read.', 'user-import' );
+			$results['errors'][] = \esc_html__( 'The CSV upload could not be read.', 'user-import' );
 			return $results;
 		}
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Reading the temporary uploaded CSV file.
 		$handle = fopen( $upload['tmp_name'], 'rb' );
 		if ( false === $handle ) {
-			$results['errors'][] = __( 'The CSV file could not be opened.', 'user-import' );
+			$results['errors'][] = \esc_html__( 'The CSV file could not be opened.', 'user-import' );
 			return $results;
 		}
 
@@ -778,132 +781,117 @@ final class User_Import_Plugin {
 		\remove_all_actions( $user_register_hook );
 
 		try {
-		$headers = fgetcsv( stream: $handle, escape: '\\' );
-		if ( false === $headers ) {
-			$results['errors'][] = __( 'The CSV file is empty.', 'user-import' );
-			return $results;
-		}
+            $headers = fgetcsv( stream: $handle, escape: '\\' );
+            if ( false === $headers ) {
+                $results['errors'][] = \esc_html__( 'The CSV file is empty.', 'user-import' );
+                return $results;
+            }
 
-		$headers       = array_map( static fn( $header ): string => trim( (string) $header ), $headers );
-		$column_mapping = self::parse_mapping( $mapping, $headers );
-		if ( is_wp_error( $column_mapping ) ) {
-			$results['errors'][] = $column_mapping->get_error_message();
-			return $results;
-		}
+            $headers       = array_map( static fn( $header ): string => trim( (string) $header ), $headers );
+            $column_mapping = self::parse_mapping( $mapping, $headers );
+            if ( \is_wp_error( $column_mapping ) ) {
+                $results['errors'][] = \esc_html( $column_mapping->get_error_message() );
+                return $results;
+            }
 
-		$row_number = 1;
-		while ( true ) {
-			$row = fgetcsv( stream: $handle, escape: '\\' );
-			if ( false === $row ) {
-				break;
-			}
+            $row_number = 1;
+            while ( true ) {
+                $row = fgetcsv( stream: $handle, escape: '\\' );
+                if ( false === $row ) {
+                    break;
+                }
 
-			++$row_number;
-			if ( count( array_filter( $row, static fn( $value ): bool => '' !== trim( (string) $value ) ) ) < 1 ) {
-				continue;
-			}
+                ++$row_number;
+                if ( count( array_filter( $row, static fn( $value ): bool => '' !== trim( (string) $value ) ) ) < 1 ) {
+                    continue;
+                }
 
-			$row = array_pad( $row, count( $headers ), '' );
-			if ( count( $row ) > count( $headers ) ) {
-				/* translators: %d: CSV row number. */
-				$results['errors'][] = sprintf( __( 'Row %d could not be parsed.', 'user-import' ), $row_number );
-				continue;
-			}
+                $row = array_pad( $row, count( $headers ), '' );
+                if ( count( $row ) > count( $headers ) ) {
+                    /* translators: %d: CSV row number. */
+                    $results['errors'][] = sprintf( \esc_html__( 'Row %d could not be parsed.', 'user-import' ), $row_number );
+                    continue;
+                }
 
-			$data = array();
-			foreach ( $column_mapping as $source_index => $target_field ) {
-				$data[ $target_field ] = (string) ( $row[ $source_index ] ?? '' );
-			}
+                $data = array();
+                foreach ( $column_mapping as $source_index => $target_field ) {
+                    $data[ $target_field ] = (string) ( $row[ $source_index ] ?? '' );
+                }
 
-			$login = sanitize_user( (string) ( $data['user_login'] ?? '' ), true );
-			$email = sanitize_email( (string) ( $data['user_email'] ?? '' ) );
-			if ( '' === $login || ! is_email( $email ) ) {
-				/* translators: %d: CSV row number. */
-				$results['errors'][] = sprintf( __( 'Row %d has an invalid username or email.', 'user-import' ), $row_number );
-				continue;
-			}
+                $login = \sanitize_user( (string) ( $data['user_login'] ?? '' ), true );
+                $email = \sanitize_email( (string) ( $data['user_email'] ?? '' ) );
+                if ( '' === $login || ! is_email( $email ) ) {
+                    /* translators: %d: CSV row number. */
+                    $results['errors'][] = sprintf( \esc_html__( 'Row %d has an invalid username or email.', 'user-import' ), $row_number );
+                    continue;
+                }
 
-			$existing_user = get_user_by( 'login', $login );
-			if ( ! $existing_user ) {
-				$existing_user = get_user_by( 'email', $email );
-			}
+                $existing_user = \get_user_by( 'login', $login );
+                if ( ! $existing_user ) {
+                    $existing_user = \get_user_by( 'email', $email );
+                }
 
-			if ( $existing_user ) {
-				$update_data = array( 'ID' => (int) $existing_user->ID );
-				foreach ( array( 'user_nicename', 'user_url', 'display_name', 'first_name', 'last_name', 'nickname', 'description', 'locale' ) as $field ) {
-					if ( isset( $data[ $field ] ) ) {
-						$update_data[ $field ] = sanitize_text_field( $data[ $field ] );
-					}
-				}
+                if ( $existing_user ) {
+                    $update_data = array( 'ID' => (int) $existing_user->ID );
+                    foreach ( array_keys( self::get_mapping_fields() ) as $field ) {
+                        if ( isset( $data[ $field ] ) ) {
+                            $update_data[ $field ] = \sanitize_text_field( $data[ $field ] );
+                        }
+                    }
 
-				$role = sanitize_key( (string) ( $data['role'] ?? '' ) );
-				if ( '' !== $role && get_role( $role ) ) {
-					$update_data['role'] = $role;
-				}
-				if ( ! empty( $selected_roles ) ) {
-					$update_data['role'] = $selected_roles[0];
-				}
+                    $updated_user_id = \wp_update_user( $update_data );
+                    if ( is_wp_error( $updated_user_id ) ) {
+                        /* translators: %d: CSV row number. */
+                        $results['errors'][] = sprintf( \esc_html__( 'Row %d could not be updated.', 'user-import' ), $row_number );
+                        continue;
+                    }
+                    self::apply_additional_roles( $existing_user, $selected_roles );
 
-				$updated_user_id = wp_update_user( $update_data );
-				if ( is_wp_error( $updated_user_id ) ) {
-					/* translators: %d: CSV row number. */
-					$results['errors'][] = sprintf( __( 'Row %d could not be updated.', 'user-import' ), $row_number );
-					continue;
-				}
-				self::apply_additional_roles( (int) $updated_user_id, $selected_roles );
+                    foreach ( $data as $field => $value ) {
+                        if ( str_starts_with( $field, 'meta:' ) ) {
+                            \update_user_meta( $updated_user_id, sanitize_key( substr( $field, 5 ) ), sanitize_text_field( $value ) );
+                        }
+                    }
 
-				foreach ( $data as $field => $value ) {
-					if ( str_starts_with( $field, 'meta:' ) ) {
-						update_user_meta( $updated_user_id, sanitize_key( substr( $field, 5 ) ), sanitize_text_field( $value ) );
-					}
-				}
+                    ++$results['updated'];
+                    $activity[] = sprintf( __( 'Updated user: %s', 'user-import' ), $login );
+                    continue;
+                }
 
-				++$results['updated'];
-				$activity[] = sprintf( __( 'Updated user: %s', 'user-import' ), $login );
-				continue;
-			}
+                $user_data = array(
+                    'user_login'   => $login,
+                    'user_email'   => $email,
+                    'user_pass'    => \wp_generate_password(),
+                );
+                foreach ( array_keys( self::get_mapping_fields() ) as $field ) {
+                    if ( isset( $data[ $field ] ) ) {
+                        $user_data[ $field ] = \sanitize_text_field( $data[ $field ] );
+                    }
+                }
 
-			$user_data = array(
-				'user_login'   => $login,
-				'user_email'   => $email,
-				'user_pass'    => wp_generate_password(),
-				'notify'      => 'none',
-			);
-			foreach ( array( 'user_pass', 'user_nicename', 'user_url', 'display_name', 'first_name', 'last_name', 'nickname', 'description', 'locale' ) as $field ) {
-				if ( isset( $data[ $field ] ) ) {
-					$user_data[ $field ] = sanitize_text_field( $data[ $field ] );
-				}
-			}
+                $user_id = wp_insert_user( $user_data );
+                if ( is_wp_error( $user_id ) ) {
+                    /* translators: %d: CSV row number. %s is the user_login or user_email. */
+                    $results['errors'][] = sprintf( __( 'Row %d ( %s) could not be imported.', 'user-import' ), $row_number, empty($user_data['user_login']) ? $user_data['user_email'] : $user_data['user_login'   ] );
+                    continue;
+                }
+                $new_user = \get_user_by( 'ID', $user_id );
+                self::apply_additional_roles($new_user, $selected_roles );
 
-			$role = sanitize_key( (string) ( $data['role'] ?? '' ) );
-			if ( '' !== $role && get_role( $role ) ) {
-				$user_data['role'] = $role;
-			}
-			if ( ! empty( $selected_roles ) ) {
-				$user_data['role'] = $selected_roles[0];
-			}
+                foreach ( $data as $field => $value ) {
+                    if ( str_starts_with( $field, 'meta:' ) ) {
+                        \update_user_meta( $user_id, \sanitize_key( substr( $field, 5 ) ), \sanitize_text_field( $value ) );
+                    }
+                }
 
-			$user_id = wp_insert_user( $user_data );
-			if ( is_wp_error( $user_id ) ) {
-				/* translators: %d: CSV row number. */
-				$results['errors'][] = sprintf( __( 'Row %d could not be imported.', 'user-import' ), $row_number );
-				continue;
-			}
-			self::apply_additional_roles( (int) $user_id, $selected_roles );
+                ++$results['imported'];
+                $activity[] = sprintf( \__( 'Created user: %s', 'user-import' ), $login );
+            }
 
-			foreach ( $data as $field => $value ) {
-				if ( str_starts_with( $field, 'meta:' ) ) {
-					update_user_meta( $user_id, sanitize_key( substr( $field, 5 ) ), sanitize_text_field( $value ) );
-				}
-			}
-
-			++$results['imported'];
-			$activity[] = sprintf( __( 'Created user: %s', 'user-import' ), $login );
-		}
-
-		return $results;
+            return $results;
 		} catch ( \Throwable $exception ) {
-			$results['errors'][] = __( 'The CSV import could not be completed.', 'user-import' );
+			$results['errors'][] = \__( 'The CSV import could not be completed.', 'user-import' );
+			$results['errors'][] = $exception->getMessage();
 			return $results;
 		} finally {
 			if ( null === $register_user_hooks ) {
@@ -927,19 +915,32 @@ final class User_Import_Plugin {
 	/**
 	 * Apply roles after the primary role has been assigned.
 	 *
-	 * @param int      $user_id User ID.
+	 * @param WP_User  $user User object.
 	 * @param string[] $roles Selected role slugs.
 	 * @return void
 	 */
-	private static function apply_additional_roles( int $user_id, array $roles ): void {
-		if ( count( $roles ) < 2 || ! function_exists( 'add_user_role' ) ) {
-			return;
-		}
+	private static function apply_additional_roles( WP_User $user, array $roles ): void {
+        $logger = DmbcLogger::get_instance();
+
+        if ( empty( $roles ) ) {
+            $logger->info( 'No additional roles to apply.' );
+            return;
+        }
+        $errors = array();
 
 		foreach ( array_slice( $roles, 1 ) as $role ) {
-			if ( get_role( $role ) ) {
-				add_user_role( $user_id, $role );
-			}
+            if (! empty($role)) {
+                if ( \get_role( $role ) ) {
+                    $user->add_role( $role );
+                }
+                else {
+                    // Log each missing role only once.
+                    if (! isset($errors[$role])) {
+                        $errors[$role] = true;
+                        $logger->error( sprintf( 'Role does not exist: %s', $role ) );
+                    }
+                }
+            }
 		}
 	}
 
@@ -973,7 +974,7 @@ final class User_Import_Plugin {
 			$mapping = implode( "\n", array_map( static fn( $header ): string => $header . '=' . sanitize_key( $header ), $headers ) );
 		}
 
-		$allowed_fields = array( 'user_login', 'user_email', 'user_pass', 'user_nicename', 'user_url', 'display_name', 'first_name', 'last_name', 'nickname', 'description', 'locale', 'role' );
+		$allowed_fields = array( 'user_login', 'user_email', 'user_pass', 'user_nicename', 'user_url', 'display_name', 'first_name', 'last_name', 'nickname', 'description', 'locale' );
 		$parsed         = array();
 
 		foreach ( preg_split( '/\r\n|\r|\n/', $mapping ) as $line ) {
