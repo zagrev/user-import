@@ -3,6 +3,8 @@
 	xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/13.0/phpunit.xsd"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	bootstrap="tests/bootstrap.php"
+	displayDetailsOnTestsThatTriggerDeprecations="true"
+    displayDetailsOnPhpunitDeprecations="true"
 	colors="true">
 	<testsuites>
 		<testsuite name="User Import">

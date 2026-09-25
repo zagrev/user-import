@@ -27,7 +27,9 @@ final class UserImportTest extends TestCase {
 		);
 
 		$this->import_csv = new ReflectionMethod( User_Import_Plugin::class, 'import_csv' );
-		$this->import_csv->setAccessible( true );
+		if (\PHP_VERSION_ID < 80100) {
+			$this->import_csv->setAccessible( true );
+		}
 	}
 
 	protected function tearDown(): void {
