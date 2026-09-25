@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+use function PHPUnit\Framework\assertSame;
 
 define( 'ABSPATH', __DIR__ . '/' );
 
@@ -14,6 +15,56 @@ class WP_Error {
 		return $this->message;
 	}
 }
+
+if (! class_exists( 'WP_User' ) ) :
+/**
+ * A stupid mock of the WordPress WP_User class for local testing.
+ */
+class WP_User {
+    public int $ID = 0;
+    public string $user_login = '';
+	public string $user_email = '';
+	public string $user_pass = '';
+	public string $user_nicename = '';
+	public string $user_url = '';
+	public string $display_name = '';
+	public string $first_name = '';
+	public string $last_name = '';
+	public string $nickname = '';
+	public string $description = '';
+	public string $locale = '';
+    public array $roles = [];
+    public array $caps = [];
+
+    public function __construct(
+        int|string|object $id = 0,
+        string $name = '',
+        int $site_id = 0
+    ) {
+        // Basic "stupid" mapping logic
+        if (is_int($id)) {
+            $this->ID = $id;
+        } elseif (is_string($id)) {
+            $this->user_login = $id;
+        } elseif (is_object($id)) {
+            $this->ID = $id->ID ?? 0;
+            $this->user_login = $id->user_login ?? '';
+        }
+
+        if (!empty($name)) {
+            $this->user_login = $name;
+        }
+    }
+
+    public function has_cap(string $capability): bool {
+        return in_array($capability, $this->caps, true);
+    }
+
+	public function get_error_message(): string {
+		return '';
+	}
+}
+endif;
 
 class User_Import_Test_Um_Fields {
 	public function get_fields(): array {
@@ -88,15 +139,44 @@ function checked( $checked, $current = true, bool $echo = true ): string {
 	}
 	return $result;
 }
-function wp_insert_user( array $user_data ) {
-	$id = count( $GLOBALS['user_import_test_state']['inserted_users'] ) + 1;
+function wp_insert_user( array &$user_data ) {
+	global $GLOBALS;
+
+	if ( ! isset( $user_data['user_login'] ) ) {
+		return false;
+	}
+	if ( isset( $user_data['ID'] ) ) {
+		$id = $user_data['ID'];
+	} else {
+		$id = count( $GLOBALS['user_import_test_state']['inserted_users'] ) + 1;
+	}
+	$new_user = new WP_User($id, $user_data['user_login']);
+
+	foreach (array_keys($user_data) as $key) {
+		$new_user->$key = $user_data[$key];
+	}
+
 	$GLOBALS['user_import_test_state']['inserted_users'][ $id ] = $user_data;
 	$GLOBALS['user_import_test_state']['user_register_hooks_disabled'][] = ! isset( $GLOBALS['wp_filter']['user_register'] );
+
+	$GLOBALS['user_import_test_state']['existing_users'][ $id ] = $new_user;
+	$GLOBALS['user_import_test_state']['existing_emails'][ $user_data['user_email'] ] = $new_user;
+
 	return $id;
 }
-function get_user_by( string $field, string $value ) {
-	$matches = 'login' === $field ? $GLOBALS['user_import_test_state']['existing_users'] : $GLOBALS['user_import_test_state']['existing_emails'];
-	return in_array( $value, $matches, true ) ? (object) array( 'ID' => 7 ) : false;
+function get_user_by( string $field, string|int $value ) {
+	switch ( $field ) {
+		case 'login':
+			return $GLOBALS['user_import_test_state']['existing_users'][ $value ] ?? false;
+		case 'email':
+			return $GLOBALS['user_import_test_state']['existing_emails'][ $value ] ?? false;
+			break;
+		case 'ID':
+			return $GLOBALS['user_import_test_state']['existing_users'][ $value ] ?? false;
+			break;
+		default:
+			return false;
+	}
 }
 function wp_update_user( array $user_data ) {
 	$GLOBALS['user_import_test_state']['updated_users'][] = $user_data;
@@ -115,3 +195,17 @@ function acf_get_field_groups(): array { return $GLOBALS['user_import_test_state
 function acf_get_fields( $group ): array { return $GLOBALS['user_import_test_state']['acf_fields'][ $group['key'] ?? '' ] ?? array(); }
 
 require_once dirname( __DIR__ ) . '/user-import.php';
+require_once dirname( __DIR__ ) . '/logger.php';
+
+// Test that wp_insert_user created user can be retrieved with get_user_by
+$user = array(
+    'user_login' => 'testuser',
+    'user_email' => 'testuser@example.com',
+);
+$new_id = wp_insert_user( $user );
+$retrieved_user = get_user_by( 'ID', $new_id );
+assertSame( $user['user_email'], $retrieved_user->user_email );
+assertSame( $user['user_login'], $retrieved_user->user_login );
+
+
+DmbcLogger::get_instance()->set_level( DmbcLogger::LEVEL_DEBUG );

@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-use DmbcTools\Plugin;
+require_once __DIR__ . '/logger.php';
 
 /**
  * Provides the user import admin page and CSV importer.
@@ -755,7 +755,7 @@ final class User_Import_Plugin {
 	 * @return array{imported: int, updated: int, skipped: int, errors: string[]}|WP_Error
 	 */
 	private static function import_csv( array $upload, string $mapping = '', array &$activity = array(), array $selected_roles = array() ): array {
-		$logger = Plugin::instance()->logger();
+		$logger = DmbcLogger::get_instance();
         $logger->info( sprintf( 'Starting CSV import: uploaded data: %s, mapping: %s, selected roles: %s', \wp_json_encode( $upload ), $mapping, \wp_json_encode( $selected_roles ) ) );
 		$user_register_hook = 'user_register';
 		$results = array(
@@ -873,14 +873,6 @@ final class User_Import_Plugin {
                     }
                 }
 
-                $role = \sanitize_key( (string) ( $data['role'] ?? '' ) );
-                // if ( '' !== $role && get_role( $role ) ) {
-                // 	$user_data['role'] = $role;
-                // }
-                // if ( ! empty( $selected_roles ) ) {
-                //     $selected_roles[] = $role;
-                // }
-
                 $user_id = wp_insert_user( $user_data );
                 if ( is_wp_error( $user_id ) ) {
                     /* translators: %d: CSV row number. %s is the user_login or user_email. */
@@ -927,12 +919,12 @@ final class User_Import_Plugin {
 	/**
 	 * Apply roles after the primary role has been assigned.
 	 *
-	 * @param int      $user_id User ID.
+	 * @param WP_User  $user User object.
 	 * @param string[] $roles Selected role slugs.
 	 * @return void
 	 */
 	private static function apply_additional_roles( WP_User $user, array $roles ): void {
-        $logger = Plugin::instance()->logger();
+        $logger = DmbcLogger::get_instance();
 
         if ( empty( $roles ) ) {
             $logger->info( 'No additional roles to apply.' );
@@ -943,7 +935,7 @@ final class User_Import_Plugin {
 		foreach ( array_slice( $roles, 1 ) as $role ) {
             if (! empty($role)) {
                 if ( \get_role( $role ) ) {
-                    $user->add_role($role );
+                    $user->add_role( $role );
                 }
                 else {
                     // Log each missing role only once.
