@@ -3,7 +3,7 @@
   "description": "Import WordPress users from a CSV file.",
   "type": "wordpress-plugin",
   "require": {
-    "php": ">=8.0"
+    "php": ">=8.4"
   },
   "require-dev": {
     "phpunit/phpunit": "^13.0",

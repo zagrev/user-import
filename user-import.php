@@ -110,7 +110,6 @@ final class User_Import_Plugin {
 			'nickname'      => __( 'Nickname', 'user-import' ),
 			'description'   => __( 'Description', 'user-import' ),
 			'locale'        => __( 'Locale', 'user-import' ),
-			'role'          => __( 'Role', 'user-import' ),
 		);
 
 		foreach ( self::get_ultimate_member_fields() as $field_name => $label ) {
@@ -840,8 +839,6 @@ final class User_Import_Plugin {
                         }
                     }
 
-                    $role = \sanitize_key( (string) ( $data['role'] ?? '' ) );
-
                     $updated_user_id = \wp_update_user( $update_data );
                     if ( is_wp_error( $updated_user_id ) ) {
                         /* translators: %d: CSV row number. */
@@ -865,7 +862,6 @@ final class User_Import_Plugin {
                     'user_login'   => $login,
                     'user_email'   => $email,
                     'user_pass'    => \wp_generate_password(),
-                    'notify'      => 'none',
                 );
                 foreach ( array_keys( self::get_mapping_fields() ) as $field ) {
                     if ( isset( $data[ $field ] ) ) {
@@ -978,7 +974,7 @@ final class User_Import_Plugin {
 			$mapping = implode( "\n", array_map( static fn( $header ): string => $header . '=' . sanitize_key( $header ), $headers ) );
 		}
 
-		$allowed_fields = array( 'user_login', 'user_email', 'user_pass', 'user_nicename', 'user_url', 'display_name', 'first_name', 'last_name', 'nickname', 'description', 'locale', 'role' );
+		$allowed_fields = array( 'user_login', 'user_email', 'user_pass', 'user_nicename', 'user_url', 'display_name', 'first_name', 'last_name', 'nickname', 'description', 'locale' );
 		$parsed         = array();
 
 		foreach ( preg_split( '/\r\n|\r|\n/', $mapping ) as $line ) {

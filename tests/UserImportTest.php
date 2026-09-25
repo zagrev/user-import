@@ -49,7 +49,7 @@ final class UserImportTest extends TestCase {
 		);
 
 		$result = $this->import_csv->invoke( null, array( 'tmp_name' => $file, 'error' => 0 ), 
-			"Email Address=user_email\n0=user_login\n2=first_name\n3=role\n4=meta:membership_id"
+			"Email Address=user_email\n0=user_login\n2=first_name\n4=meta:membership_id"
 		);
 
 		$this->assertSame( 1, $result['imported'] );
@@ -61,9 +61,7 @@ final class UserImportTest extends TestCase {
 				'user_login' => 'member-17',
 				'user_email' => 'member@example.com',
 				'user_pass'  => 'generated-password',
-				'notify'     => 'none',
 				'first_name' => 'Alex',
-				'role'       => 'subscriber',
 			),
 			$GLOBALS['user_import_test_state']['inserted_users'][1]
 		);
@@ -167,7 +165,9 @@ final class UserImportTest extends TestCase {
 		);
 
 		$method = new ReflectionMethod( User_Import_Plugin::class, 'get_mapping_fields' );
-		$method->setAccessible( true );
+		if (\PHP_VERSION_ID < 80100) {
+			$method->setAccessible( true );
+		}
 		$fields = $method->invoke( null );
 
 		$this->assertSame( 'UM: Member Number', $fields['meta:um_member_number'] );

@@ -140,7 +140,6 @@ function checked( $checked, $current = true, bool $echo = true ): string {
 	return $result;
 }
 function wp_insert_user( array &$user_data ) {
-	global $GLOBALS;
 
 	if ( ! isset( $user_data['user_login'] ) ) {
 		return false;
