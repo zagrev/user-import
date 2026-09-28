@@ -1,0 +1,6 @@
+{
+  "core": "WordPress/WordPress#7.1",
+  "plugins": ["."],
+  "phpVersion": "8.4",
+  "testsEnvironment": true
+}
