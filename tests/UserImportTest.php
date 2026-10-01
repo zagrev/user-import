@@ -76,7 +76,7 @@ final class UserImportTest extends TestCase {
 		$result = $this->invoke_import( $file, 'Name=display_name' );
 
 		$this->assertSame( 0, $result['imported'] );
-		$this->assertSame( 'Map columns to both Username and Email.', $result['errors'][0] );
+		$this->assertSame( 'You must map a column to Email.', $result['errors'][0] );
 	}
 
 	public function test_import_updates_existing_user_without_changing_identity_fields(): void {
@@ -220,9 +220,9 @@ final class UserImportTest extends TestCase {
 		User_Import_Plugin::render_import_page();
 		$html = (string) ob_get_clean();
 
-		$this->assertStringContainsString( 'Step 2:', $html );
-		$this->assertStringContainsString( 'Map columns to both Username and Email.', $html );
-		$this->assertStringNotContainsString( 'Step 3:', $html );
+		$this->assertStringContainsString( 'Step 3:', $html );
+		$this->assertStringContainsString( 'No users will be created.', $html );
+		$this->assertStringNotContainsString( 'Step 2:', $html );
 	}
 
 	public function test_role_step_renders_selected_roles_after_valid_mapping(): void {

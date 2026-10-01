@@ -16,19 +16,20 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-
 use YahnisElsts\PluginUpdateChecker\v5p7\Vcs\PluginUpdateChecker;
 use YahnisElsts\PluginUpdateChecker\v5p7\Vcs\GitHubApi;
 
-$github_api = new GitHubApi( 'https://github.com/zagrev/user-import' );
+\add_action(
+	'plugins_loaded',
+	function () {
+		$github_api = new GitHubApi( 'https://github.com/zagrev/user-import' );
 
-// 2. Explicitly enable your release asset preferences natively
-$github_api->enableReleaseAssets();
+		// 2. Explicitly enable your release asset preferences natively
+		$github_api->enableReleaseAssets();
 
-// 3. Inject it straight into the VCS PluginUpdateChecker container
-$update_checker = new PluginUpdateChecker(
-	$github_api,
-	__FILE__
+		// 3. Inject it straight into the VCS PluginUpdateChecker container
+		$update_checker = new PluginUpdateChecker( $github_api, __FILE__ );
+	}
 );
 
 require_once __DIR__ . '/logger.php';
@@ -422,10 +423,8 @@ final class User_Import_Plugin {
 						<p><?php esc_html_e( 'Start by selecting the CSV file you want to import.', 'user-import' ); ?></p>
 						<ul>
 							<li><?php esc_html_e( 'The first row should contain your CSV column headings.', 'user-import' ); ?></li>
-							<li><?php esc_html_e( 'On the next step, drag CSV columns onto WordPress fields to create the mapping.', 'user-import' ); ?>
-							</li>
-							<li><?php esc_html_e( 'Map columns to both Username and Email; existing users will be updated without changing those identity fields.', 'user-import' ); ?>
-							</li>
+							<li><?php esc_html_e( 'On the next step, drag CSV columns onto WordPress fields to create the mapping.', 'user-import' ); ?></li>
+							<li><?php esc_html_e( 'Map columns to either Username or Email; existing users will be updated without changing those identity fields.', 'user-import' ); ?></li>
 						</ul>
 					</div>
 				<?php elseif ( 'mapping' === $wizard_step ) : ?>
@@ -433,9 +432,8 @@ final class User_Import_Plugin {
 						<p><?php esc_html_e( 'Match each CSV column to the WordPress field that should receive its value.', 'user-import' ); ?>
 						</p>
 						<ul>
-							<li><?php esc_html_e( 'Drag a CSV column onto a WordPress field, or drag a WordPress field onto a CSV column.', 'user-import' ); ?>
-							</li>
-							<li><?php esc_html_e( 'Username and Email are required before continuing.', 'user-import' ); ?></li>
+							<li><?php esc_html_e( 'Drag a CSV column onto a WordPress field, or drag a WordPress field onto a CSV column.', 'user-import' ); ?></li>
+							<li><?php esc_html_e( 'Username or Email is required before continuing.', 'user-import' ); ?></li>
 							<li><?php esc_html_e( 'You can load or save a mapping for reuse.', 'user-import' ); ?></li>
 						</ul>
 					</div>
@@ -443,7 +441,6 @@ final class User_Import_Plugin {
 					<div class="user-import-step-instructions">
 						<p><?php esc_html_e( 'Choose the roles to apply to every user in this import.', 'user-import' ); ?></p>
 						<ul>
-							<li><?php esc_html_e( 'The first selected role becomes the primary role.', 'user-import' ); ?></li>
 							<li><?php esc_html_e( 'Additional selected roles are added to each user.', 'user-import' ); ?></li>
 							<li><?php esc_html_e( 'Use Back to return to the mapping step and change the field assignments.', 'user-import' ); ?>
 							</li>
@@ -635,8 +632,7 @@ final class User_Import_Plugin {
 		</table>
 		<p class="submit">
 			<?php if ( 'import' === $mode && 'upload' === $wizard_step ) : ?>
-				<button id="user-import-continue-upload" type="submit" class="button button-primary" name="user_import_action"
-					value="upload_csv" <?php echo '' === $pending_token ? 'disabled' : ''; ?>><?php esc_html_e( 'Continue to column mapping', 'user-import' ); ?></button>
+				<button id="user-import-continue-upload" type="submit" class="button button-primary" name="user_import_action" value="upload_csv" <?php echo '' === $pending_token ? 'disabled' : ''; ?>><?php esc_html_e( 'Continue to column mapping', 'user-import' ); ?></button>
 			<?php elseif ( 'import' === $mode && 'mapping' === $wizard_step ) : ?>
 				<button type="submit" class="button" name="user_import_action"
 					value="back_to_upload"><?php esc_html_e( 'Back', 'user-import' ); ?></button>
