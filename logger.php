@@ -34,7 +34,7 @@ final class DmbcLogger {
 		}
 		return $instance;
 	}
-	
+
 	/**
 	 * The channel is the logger name (or object or filename)
 	 *
@@ -60,7 +60,7 @@ final class DmbcLogger {
 	 * @param string $channel Logical channel for the log output.
 	 * @param int    $log_level The initial log level.
 	 */
-	public function __construct( string $channel = 'user-import', int $log_level = self::LEVEL_WARN ) {
+	public function __construct( string $channel = 'user-import', int $log_level = self::LEVEL_INFO ) {
 		$this->channel   = trim( $channel ) !== '' ? trim( $channel ) : 'user-import';
 		$this->log_level = $log_level;
 	}

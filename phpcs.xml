@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<ruleset name="WordPress Project Rules">
+    <description>Apply WordPress Coding Standards to this project.</description>
+    
+    <!-- Use the official WordPress standard -->
+    <rule ref="WordPress" >
+        <!-- Disable the class- file naming prefix requirement -->
+        <exclude name="WordPress.Files.FileName.InvalidClassFileName"/>
+        <exclude name="WordPress.Files.FileName.NotHyphenatedLowercase"/>
+    </rule>
+    <rule ref="Generic.Files.LineEndings">
+        <exclude name="Generic.Files.LineEndings.InvalidEOLChar"/>
+    </rule>
+    
+
+    <!-- Check PHP files -->
+    <arg name="extensions" value="php" />
+    <arg name="colors" />
+    
+    <!-- Exclude third-party vendor directories -->
+    <exclude-pattern>*/vendor/*</exclude-pattern>
+    <exclude-pattern>*/node_modules/*</exclude-pattern>
+
+    <!-- Standalone CLI tools; no WordPress context is loaded, WP-specific sniffs don't apply -->
+    <exclude-pattern>*/bin/*</exclude-pattern>
+
+    <!-- Test-only WordPress function stubs; not subject to WP core coding standards -->
+    <exclude-pattern>*/tests/*</exclude-pattern>
+</ruleset>

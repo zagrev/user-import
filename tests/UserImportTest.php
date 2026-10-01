@@ -48,7 +48,7 @@ final class UserImportTest extends TestCase {
 			"member-17,member@example.com,Alex,subscriber,ABC-17\n"
 		);
 
-		$result = $this->import_csv->invoke( null, array( 'tmp_name' => $file, 'error' => 0 ), 
+		$result = $this->import_csv->invoke( null, array( 'tmp_name' => $file, 'error' => 0 ),
 			"Email Address=user_email\n0=user_login\n2=first_name\n4=meta:membership_id"
 		);
 
@@ -76,7 +76,7 @@ final class UserImportTest extends TestCase {
 		$result = $this->invoke_import( $file, 'Name=display_name' );
 
 		$this->assertSame( 0, $result['imported'] );
-		$this->assertSame( 'Map columns to both user_login and user_email.', $result['errors'][0] );
+		$this->assertSame( 'Map columns to both Username and Email.', $result['errors'][0] );
 	}
 
 	public function test_import_updates_existing_user_without_changing_identity_fields(): void {
@@ -85,7 +85,7 @@ final class UserImportTest extends TestCase {
 		$test_user->user_email = 'member@example.com';
 		$GLOBALS['user_import_test_state']['existing_users'][7] = $test_user;
 		$GLOBALS['user_import_test_state']['existing_emails'][ $test_user->user_email ] = $test_user;
-	
+
 		$file = $this->create_csv( "user_login,user_email,display_name,first_name,user_pass\nmember-17,member@example.com,Alex Member,Alex,new-password\n" );
 
 		$result = $this->invoke_import( $file, "user_login=user_login\nuser_email=user_email\ndisplay_name=display_name\nfirst_name=first_name\nuser_pass=user_pass" );
@@ -96,9 +96,9 @@ final class UserImportTest extends TestCase {
 		$this->assertSame(
 			array(
 				'ID'           => 7,
-				'user_login' => 'member-17', 
-				'user_email' => 'member@example.com', 
-				'user_pass' => 'new-password', 
+				'user_login' => 'member-17',
+				'user_email' => 'member@example.com',
+				'user_pass' => 'new-password',
 				'display_name' => 'Alex Member',
 				'first_name'   => 'Alex',
 			),
@@ -221,7 +221,7 @@ final class UserImportTest extends TestCase {
 		$html = (string) ob_get_clean();
 
 		$this->assertStringContainsString( 'Step 2:', $html );
-		$this->assertStringContainsString( 'Map columns to both user_login and user_email.', $html );
+		$this->assertStringContainsString( 'Map columns to both Username and Email.', $html );
 		$this->assertStringNotContainsString( 'Step 3:', $html );
 	}
 

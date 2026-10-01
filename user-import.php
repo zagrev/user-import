@@ -16,16 +16,31 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+
+use YahnisElsts\PluginUpdateChecker\v5p7\Vcs\PluginUpdateChecker;
+use YahnisElsts\PluginUpdateChecker\v5p7\Vcs\GitHubApi;
+
+$github_api = new GitHubApi( 'https://github.com/zagrev/user-import' );
+
+// 2. Explicitly enable your release asset preferences natively
+$github_api->enableReleaseAssets();
+
+// 3. Inject it straight into the VCS PluginUpdateChecker container
+$update_checker = new PluginUpdateChecker(
+	$github_api,
+	__FILE__
+);
+
 require_once __DIR__ . '/logger.php';
 
 /**
  * Provides the user import admin page and CSV importer.
  */
 final class User_Import_Plugin {
-	private const NONCE_ACTION = 'user_import_csv';
-	private const MENU_SLUG    = 'user-import';
+	private const NONCE_ACTION     = 'user_import_csv';
+	private const MENU_SLUG        = 'user-import';
 	private const EXPORT_MENU_SLUG = 'user-export';
-	private const MAPPINGS_OPTION = 'user_import_saved_mappings';
+	private const MAPPINGS_OPTION  = 'user_import_saved_mappings';
 
 	/**
 	 * Register the plugin hooks.
@@ -113,10 +128,12 @@ final class User_Import_Plugin {
 		);
 
 		foreach ( self::get_ultimate_member_fields() as $field_name => $label ) {
+			/* Translators: Ultimate Member custom field prefix. Used in the drag-and-drop mapper. */
 			$fields[ 'meta:' . $field_name ] = sprintf( __( 'UM: %s', 'user-import' ), $label );
 		}
 
 		foreach ( self::get_acf_user_fields() as $field_name => $label ) {
+			/* Translators: ACF custom field prefix. Used in the drag-and-drop mapper. */
 			$fields[ 'meta:' . $field_name ] = sprintf( __( 'ACF: %s', 'user-import' ), $label );
 		}
 
@@ -155,7 +172,7 @@ final class User_Import_Plugin {
 
 			$raw_fields = array();
 			if ( method_exists( $ultimate_member, 'options' ) && function_exists( 'um_get_form_fields' ) ) {
-				$options = $ultimate_member->options();
+				$options   = $ultimate_member->options();
 				$core_form = is_object( $options ) && method_exists( $options, 'get' ) ? $options->get( 'core_profile' ) : '';
 				if ( $core_form ) {
 					$raw_fields = (array) \um_get_form_fields( $core_form );
@@ -163,15 +180,15 @@ final class User_Import_Plugin {
 			}
 
 			if ( empty( $raw_fields ) && method_exists( $ultimate_member, 'fields' ) ) {
-                $field_manager = $ultimate_member->fields();
+				$field_manager = $ultimate_member->fields();
 				if ( is_object( $field_manager ) && method_exists( $field_manager, 'all_fields' ) ) {
 					$raw_fields = $field_manager->all_fields();
 				} elseif ( is_object( $field_manager ) && method_exists( $field_manager, 'get_fields' ) ) {
 					$raw_fields = $field_manager->get_fields();
 				} elseif ( is_object( $field_manager ) && method_exists( $field_manager, 'get_all_user_fields' ) ) {
 					$raw_fields = $field_manager->get_all_user_fields();
-                }
-            }
+				}
+			}
 
 			if ( empty( $raw_fields ) ) {
 				$raw_fields = get_option( 'um_fields', array() );
@@ -213,7 +230,7 @@ final class User_Import_Plugin {
 
 		$fields = array();
 		foreach ( (array) acf_get_field_groups() as $group ) {
-			$locations = $group['location'] ?? array();
+			$locations     = $group['location'] ?? array();
 			$is_user_group = false;
 			foreach ( $locations as $location_group ) {
 				foreach ( $location_group as $location ) {
@@ -272,23 +289,23 @@ final class User_Import_Plugin {
 		$notice_type    = 'notice-info';
 		$saved_mappings = self::get_saved_mappings();
 		$wizard_state   = array(
-			'step'            => 'upload',
-			'pending_token'   => '',
+			'step'              => 'upload',
+			'pending_token'     => '',
 			'uploaded_filename' => '',
-			'mapping_name'    => '',
-			'mapping'        => '',
-			'selected_roles'  => array(),
-			'csv_headers'    => array(),
+			'mapping_name'      => '',
+			'mapping'           => '',
+			'selected_roles'    => array(),
+			'csv_headers'       => array(),
 		);
 		$activity       = array();
-		$action        = isset( $_POST['user_import_action'] ) ? sanitize_key( wp_unslash( $_POST['user_import_action'] ) ) : '';
+		$action         = isset( $_POST['user_import_action'] ) ? sanitize_key( wp_unslash( $_POST['user_import_action'] ) ) : '';
 		if ( '' !== $action ) {
 			check_admin_referer( self::NONCE_ACTION );
 			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- The upload is validated by import_csv() before it is opened.
-			$upload  = isset( $_FILES['user_import_csv'] ) && is_array( $_FILES['user_import_csv'] ) ? $_FILES['user_import_csv'] : array();
-			$has_new_upload = ! empty( $upload['tmp_name'] ) && empty( $upload['error'] );
-			$posted_pending_token = isset( $_POST['user_import_pending_token'] ) ? sanitize_file_name( wp_unslash( $_POST['user_import_pending_token'] ) ) : '';
-			$wizard_state['pending_token'] = $posted_pending_token;
+			$upload                            = isset( $_FILES['user_import_csv'] ) && is_array( $_FILES['user_import_csv'] ) ? $_FILES['user_import_csv'] : array();
+			$has_new_upload                    = ! empty( $upload['tmp_name'] ) && empty( $upload['error'] );
+			$posted_pending_token              = isset( $_POST['user_import_pending_token'] ) ? sanitize_file_name( wp_unslash( $_POST['user_import_pending_token'] ) ) : '';
+			$wizard_state['pending_token']     = $posted_pending_token;
 			$wizard_state['uploaded_filename'] = isset( $_POST['user_import_pending_filename'] ) ? sanitize_file_name( wp_unslash( $_POST['user_import_pending_filename'] ) ) : '';
 			if ( empty( $upload['tmp_name'] ) && '' !== $posted_pending_token ) {
 				$upload['tmp_name'] = self::get_pending_upload_path( $posted_pending_token );
@@ -298,8 +315,8 @@ final class User_Import_Plugin {
 				$wizard_state['csv_headers'] = self::get_csv_headers( $upload['tmp_name'] );
 			}
 			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Mapping rules are sanitized by parse_mapping().
-			$wizard_state['mapping'] = isset( $_POST['user_import_mapping'] ) ? (string) wp_unslash( $_POST['user_import_mapping'] ) : '';
-			$wizard_state['mapping_name'] = isset( $_POST['user_import_mapping_name'] ) ? sanitize_text_field( wp_unslash( $_POST['user_import_mapping_name'] ) ) : '';
+			$wizard_state['mapping']        = isset( $_POST['user_import_mapping'] ) ? (string) wp_unslash( $_POST['user_import_mapping'] ) : '';
+			$wizard_state['mapping_name']   = isset( $_POST['user_import_mapping_name'] ) ? sanitize_text_field( wp_unslash( $_POST['user_import_mapping_name'] ) ) : '';
 			$wizard_state['selected_roles'] = isset( $_POST['user_import_roles'] ) && is_array( $_POST['user_import_roles'] )
 				? array_values( array_filter( array_map( 'sanitize_key', wp_unslash( $_POST['user_import_roles'] ) ) ) )
 				: array();
@@ -310,7 +327,7 @@ final class User_Import_Plugin {
 				}
 
 				if ( '' === $wizard_state['mapping_name'] || '' === trim( $wizard_state['mapping'] ) ) {
-					$notice = __( 'Enter a mapping name and configure a mapping before saving.', 'user-import' );
+					$notice      = __( 'Enter a mapping name and configure a mapping before saving.', 'user-import' );
 					$notice_type = 'notice-error';
 				} else {
 					$saved_mappings[ $wizard_state['mapping_name'] ] = $wizard_state['mapping'];
@@ -328,22 +345,26 @@ final class User_Import_Plugin {
 				$mapping_check = self::parse_mapping( $wizard_state['mapping'], $wizard_state['csv_headers'] );
 				if ( is_wp_error( $mapping_check ) ) {
 					$wizard_state['step'] = 'mapping';
-					$notice      = $mapping_check->get_error_message();
-					$notice_type = 'notice-error';
+					$notice               = $mapping_check->get_error_message();
+					$notice_type          = 'notice-error';
 				} else {
+					if ( ! empty( $mapping_check['notice'] ) ) {
+						$notice      = $mapping_check['notice'];
+						$notice_type = $mapping_check['notice_type'] ?? 'notice-warning';
+					}
 					$wizard_state['step'] = 'roles';
 				}
 			} elseif ( 'restart_import' === $action && 'import' === $mode ) {
 				if ( '' !== $posted_pending_token ) {
 					self::delete_pending_upload( $posted_pending_token );
 				}
-				$wizard_state['pending_token'] = '';
+				$wizard_state['pending_token']     = '';
 				$wizard_state['uploaded_filename'] = '';
-				$wizard_state['mapping'] = '';
-				$wizard_state['mapping_name'] = '';
-				$wizard_state['selected_roles'] = array();
-				$wizard_state['csv_headers'] = array();
-				$wizard_state['step'] = 'upload';
+				$wizard_state['mapping']           = '';
+				$wizard_state['mapping_name']      = '';
+				$wizard_state['selected_roles']    = array();
+				$wizard_state['csv_headers']       = array();
+				$wizard_state['step']              = 'upload';
 			} elseif ( 'upload_csv' === $action && 'import' === $mode ) {
 				$wizard_state['pending_token'] = self::persist_pending_upload( $upload, $posted_pending_token );
 				if ( '' !== $wizard_state['pending_token'] ) {
@@ -351,18 +372,18 @@ final class User_Import_Plugin {
 						$wizard_state['uploaded_filename'] = sanitize_file_name( (string) $upload['name'] );
 					}
 					$wizard_state['csv_headers'] = self::get_csv_headers( self::get_pending_upload_path( $wizard_state['pending_token'] ) );
-					$wizard_state['step'] = 'mapping';
+					$wizard_state['step']        = 'mapping';
 					if ( $has_new_upload ) {
 						$wizard_state['mapping'] = '';
 					}
 				} else {
-					$notice = __( 'The CSV upload could not be retained.', 'user-import' );
+					$notice      = __( 'The CSV upload could not be retained.', 'user-import' );
 					$notice_type = 'notice-error';
 				}
 			} elseif ( 'export_csv' === $action && 'export' === $mode ) {
 				self::export_csv( $upload, $wizard_state['mapping'] );
 			} elseif ( 'import_users' === $action && 'import' === $mode ) {
-				$wizard_state['step'] = 'summary';
+				$wizard_state['step']          = 'summary';
 				$wizard_state['pending_token'] = self::persist_pending_upload( $upload, $posted_pending_token );
 				if ( '' !== $wizard_state['pending_token'] ) {
 					$upload['tmp_name'] = self::get_pending_upload_path( $wizard_state['pending_token'] );
@@ -381,32 +402,39 @@ final class User_Import_Plugin {
 			$wizard_state['step'] = 'roles';
 		}
 
-		$wizard_step     = $wizard_state['step'];
-		$pending_token   = $wizard_state['pending_token'];
+		$wizard_step      = $wizard_state['step'];
+		$pending_token    = $wizard_state['pending_token'];
 		$pending_filename = $wizard_state['uploaded_filename'];
-		$mapping         = $wizard_state['mapping'];
+		$mapping          = $wizard_state['mapping'];
 		$selected_mapping = $wizard_state['mapping_name'];
-		$csv_headers     = $wizard_state['csv_headers'];
-		$selected_roles  = $wizard_state['selected_roles'];
+		$csv_headers      = $wizard_state['csv_headers'];
+		$selected_roles   = $wizard_state['selected_roles'];
 		?>
 		<div class="wrap">
-			<h1><?php echo esc_html( 'export' === $mode ? __( 'Export Users', 'user-import' ) : __( 'Import Users', 'user-import' ) ); ?></h1>
+			<h1><?php echo esc_html( 'export' === $mode ? __( 'Export Users', 'user-import' ) : __( 'Import Users', 'user-import' ) ); ?>
+			</h1>
 			<?php if ( 'import' === $mode ) : ?>
-				<h2 class="user-import-step-heading"><?php echo esc_html( 'Step ' . ( 'upload' === $wizard_step ? '1' : ( 'mapping' === $wizard_step ? '2' : ( 'roles' === $wizard_step ? '3' : '4' ) ) ) . ': ' . ( 'upload' === $wizard_step ? 'Choose a CSV file.' : ( 'mapping' === $wizard_step ? 'Map CSV columns to WordPress fields.' : ( 'roles' === $wizard_step ? 'Choose roles to apply to every user.' : 'Review the import activity and summary.' ) ) ) ); ?></h2>
+				<h2 class="user-import-step-heading">
+					<?php echo esc_html( 'Step ' . ( 'upload' === $wizard_step ? '1' : ( 'mapping' === $wizard_step ? '2' : ( 'roles' === $wizard_step ? '3' : '4' ) ) ) . ': ' . ( 'upload' === $wizard_step ? 'Choose a CSV file.' : ( 'mapping' === $wizard_step ? 'Map CSV columns to WordPress fields.' : ( 'roles' === $wizard_step ? 'Choose roles to apply to every user.' : 'Review the import activity and summary.' ) ) ) ); ?>
+				</h2>
 				<?php if ( 'upload' === $wizard_step ) : ?>
 					<div class="user-import-step-instructions">
 						<p><?php esc_html_e( 'Start by selecting the CSV file you want to import.', 'user-import' ); ?></p>
 						<ul>
 							<li><?php esc_html_e( 'The first row should contain your CSV column headings.', 'user-import' ); ?></li>
-							<li><?php esc_html_e( 'On the next step, drag CSV columns onto WordPress fields to create the mapping.', 'user-import' ); ?></li>
-							<li><?php esc_html_e( 'Map columns to both Username and Email; existing users will be updated without changing those identity fields.', 'user-import' ); ?></li>
+							<li><?php esc_html_e( 'On the next step, drag CSV columns onto WordPress fields to create the mapping.', 'user-import' ); ?>
+							</li>
+							<li><?php esc_html_e( 'Map columns to both Username and Email; existing users will be updated without changing those identity fields.', 'user-import' ); ?>
+							</li>
 						</ul>
 					</div>
 				<?php elseif ( 'mapping' === $wizard_step ) : ?>
 					<div class="user-import-step-instructions">
-						<p><?php esc_html_e( 'Match each CSV column to the WordPress field that should receive its value.', 'user-import' ); ?></p>
+						<p><?php esc_html_e( 'Match each CSV column to the WordPress field that should receive its value.', 'user-import' ); ?>
+						</p>
 						<ul>
-							<li><?php esc_html_e( 'Drag a CSV column onto a WordPress field, or drag a WordPress field onto a CSV column.', 'user-import' ); ?></li>
+							<li><?php esc_html_e( 'Drag a CSV column onto a WordPress field, or drag a WordPress field onto a CSV column.', 'user-import' ); ?>
+							</li>
 							<li><?php esc_html_e( 'Username and Email are required before continuing.', 'user-import' ); ?></li>
 							<li><?php esc_html_e( 'You can load or save a mapping for reuse.', 'user-import' ); ?></li>
 						</ul>
@@ -417,7 +445,8 @@ final class User_Import_Plugin {
 						<ul>
 							<li><?php esc_html_e( 'The first selected role becomes the primary role.', 'user-import' ); ?></li>
 							<li><?php esc_html_e( 'Additional selected roles are added to each user.', 'user-import' ); ?></li>
-							<li><?php esc_html_e( 'Use Back to return to the mapping step and change the field assignments.', 'user-import' ); ?></li>
+							<li><?php esc_html_e( 'Use Back to return to the mapping step and change the field assignments.', 'user-import' ); ?>
+							</li>
 						</ul>
 					</div>
 				<?php elseif ( 'summary' === $wizard_step ) : ?>
@@ -425,8 +454,10 @@ final class User_Import_Plugin {
 						<p><?php esc_html_e( 'The import has finished. Review the activity and summary below.', 'user-import' ); ?></p>
 						<ul>
 							<li><?php esc_html_e( 'Imported counts newly created users.', 'user-import' ); ?></li>
-							<li><?php esc_html_e( 'Updated counts existing users whose mapped fields were applied.', 'user-import' ); ?></li>
-							<li><?php esc_html_e( 'Use Back to mapping to review the configuration or Run Again to start over with a new upload.', 'user-import' ); ?></li>
+							<li><?php esc_html_e( 'Updated counts existing users whose mapped fields were applied.', 'user-import' ); ?>
+							</li>
+							<li><?php esc_html_e( 'Use Back to mapping to review the configuration or Run Again to start over with a new upload.', 'user-import' ); ?>
+							</li>
 						</ul>
 					</div>
 				<?php endif; ?>
@@ -458,7 +489,9 @@ final class User_Import_Plugin {
 				</div>
 			<?php endif; ?>
 			<?php if ( '' !== $notice ) : ?>
-				<div class="notice <?php echo esc_attr( $notice_type ); ?>"><p><?php echo esc_html( $notice ); ?></p></div>
+				<div class="notice <?php echo esc_attr( $notice_type ); ?>">
+					<p><?php echo esc_html( $notice ); ?></p>
+				</div>
 			<?php endif; ?>
 			<?php if ( 'import' === $mode && 'summary' === $wizard_step && ! empty( $activity ) ) : ?>
 				<h2><?php esc_html_e( 'Processing activity', 'user-import' ); ?></h2>
@@ -481,118 +514,150 @@ final class User_Import_Plugin {
 					<input type="hidden" name="user_import_pending_filename" value="<?php echo esc_attr( $pending_filename ); ?>">
 				<?php endif; ?>
 				<?php if ( '' !== $pending_token ) : ?>
-					<p class="description"><?php esc_html_e( 'The uploaded CSV is being retained for this import. Choose a new file to replace it.', 'user-import' ); ?></p>
+					<p class="description">
+						<?php esc_html_e( 'The uploaded CSV is being retained for this import. Choose a new file to replace it.', 'user-import' ); ?>
+					</p>
 				<?php endif; ?>
 				<table class="form-table" role="presentation">
 					<?php if ( 'upload' === $wizard_step || 'export' === $mode ) : ?>
-					<tr>
-						<th scope="row"><label for="user-import-csv"><?php esc_html_e( 'CSV file', 'user-import' ); ?></label></th>
-						<td>
-							<?php if ( 'upload' === $wizard_step && '' !== $pending_filename ) : ?>
-								<p class="user-import-retained-file"><strong><?php esc_html_e( 'Retained CSV:', 'user-import' ); ?></strong> <?php echo esc_html( $pending_filename ); ?></p>
-							<?php endif; ?>
-							<?php if ( 'import' === $mode && 'upload' === $wizard_step ) : ?>
-								<div id="user-import-upload-dropzone" class="user-import-upload-dropzone" tabindex="0" role="button">
-									<strong><?php esc_html_e( 'Drop a CSV file here', 'user-import' ); ?></strong>
-									<span><?php esc_html_e( 'or choose a file below', 'user-import' ); ?></span>
-								</div>
-							<?php endif; ?>
-							<input id="user-import-csv" name="user_import_csv" type="file" accept=".csv,text/csv" <?php echo 'upload' === $wizard_step && '' === $pending_token ? 'required' : ''; ?> >
-						</td>
-					</tr>
+						<tr>
+							<th scope="row"><label for="user-import-csv"><?php esc_html_e( 'CSV file', 'user-import' ); ?></label>
+							</th>
+							<td>
+								<?php if ( 'upload' === $wizard_step && '' !== $pending_filename ) : ?>
+									<p class="user-import-retained-file">
+										<strong><?php esc_html_e( 'Retained CSV:', 'user-import' ); ?></strong>
+										<?php echo esc_html( $pending_filename ); ?>
+									</p>
+								<?php endif; ?>
+								<?php if ( 'import' === $mode && 'upload' === $wizard_step ) : ?>
+									<div id="user-import-upload-dropzone" class="user-import-upload-dropzone" tabindex="0"
+										role="button">
+										<strong><?php esc_html_e( 'Drop a CSV file here', 'user-import' ); ?></strong>
+										<span><?php esc_html_e( 'or choose a file below', 'user-import' ); ?></span>
+									</div>
+								<?php endif; ?>
+								<input id="user-import-csv" name="user_import_csv" type="file" accept=".csv,text/csv" <?php echo 'upload' === $wizard_step && '' === $pending_token ? 'required' : ''; ?>>
+							</td>
+						</tr>
 					<?php endif; ?>
 					<?php if ( 'mapping' === $wizard_step || 'export' === $mode ) : ?>
-					<tr>
-						<th scope="row"><label for="user-import-mapping"><?php esc_html_e( 'Column mapping', 'user-import' ); ?></label></th>
-						<td>
-							<fieldset class="user-import-saved-mapping-area">
-								<legend><?php esc_html_e( 'Saved mappings', 'user-import' ); ?></legend>
-								<label for="user-import-saved-mapping"><?php esc_html_e( 'Load saved mapping', 'user-import' ); ?></label>
-								<select id="user-import-saved-mapping" name="user_import_saved_mapping" class="user-import-saved-mapping">
-									<option value=""><?php esc_html_e( 'Choose a saved mapping', 'user-import' ); ?></option>
-									<?php foreach ( $saved_mappings as $name => $saved_mapping ) : ?>
-										<option value="<?php echo esc_attr( $name ); ?>" data-mapping="<?php echo esc_attr( $saved_mapping ); ?>" <?php selected( $selected_mapping, $name ); ?>><?php echo esc_html( $name ); ?></option>
-									<?php endforeach; ?>
-								</select>
-								<label for="user-import-mapping-name"><?php esc_html_e( 'Save current mapping as', 'user-import' ); ?></label>
-								<input id="user-import-mapping-name" name="user_import_mapping_name" type="text" class="regular-text" value="<?php echo esc_attr( $selected_mapping ); ?>">
-								<button type="submit" class="button" name="user_import_action" value="save_mapping"><?php esc_html_e( 'Save mapping', 'user-import' ); ?></button>
-							</fieldset>
-							<br><br>
-							<div id="user-import-mapping-builder" class="user-import-mapping-builder">
-								<p><?php esc_html_e( 'Choose the CSV file, then drag user fields onto CSV columns. Drag a mapped field back to the user fields list to remove it. Required fields are marked.', 'user-import' ); ?></p>
-								<div id="user-import-mapping-panels" class="user-import-mapping-panels">
-									<svg id="user-import-mapping-lines" class="user-import-mapping-lines" aria-hidden="true"></svg>
-									<div>
-										<h3><?php esc_html_e( 'CSV columns', 'user-import' ); ?></h3>
-										<div id="user-import-columns" class="user-import-columns" aria-live="polite" data-csv-headers="<?php echo esc_attr( wp_json_encode( $csv_headers ) ); ?>">
-											<?php if ( empty( $csv_headers ) ) : ?>
-												<p><?php esc_html_e( 'CSV columns will appear here after you choose a file.', 'user-import' ); ?></p>
-											<?php else : ?>
-												<?php foreach ( $csv_headers as $header_index => $header ) : ?>
-													<div class="user-import-column">
-														<span class="dashicons dashicons-move user-import-drag-icon" aria-hidden="true"></span>
-														<strong><?php echo esc_html( $header_index . ': ' . ( '' !== $header ? $header : __( '(blank header)', 'user-import' ) ) ); ?></strong>
-													</div>
+						<tr>
+							<th scope="row"><label
+									for="user-import-mapping"><?php esc_html_e( 'Column mapping', 'user-import' ); ?></label></th>
+							<td>
+								<fieldset class="user-import-saved-mapping-area">
+									<legend><?php esc_html_e( 'Saved mappings', 'user-import' ); ?></legend>
+									<label
+										for="user-import-saved-mapping"><?php esc_html_e( 'Load saved mapping', 'user-import' ); ?></label>
+									<select id="user-import-saved-mapping" name="user_import_saved_mapping"
+										class="user-import-saved-mapping">
+										<option value=""><?php esc_html_e( 'Choose a saved mapping', 'user-import' ); ?></option>
+										<?php foreach ( $saved_mappings as $name => $saved_mapping ) : ?>
+											<option value="<?php echo esc_attr( $name ); ?>"
+												data-mapping="<?php echo esc_attr( $saved_mapping ); ?>" <?php selected( $selected_mapping, $name ); ?>><?php echo esc_html( $name ); ?></option>
+										<?php endforeach; ?>
+									</select>
+									<label
+										for="user-import-mapping-name"><?php esc_html_e( 'Save current mapping as', 'user-import' ); ?></label>
+									<input id="user-import-mapping-name" name="user_import_mapping_name" type="text"
+										class="regular-text" value="<?php echo esc_attr( $selected_mapping ); ?>">
+									<button type="submit" class="button" name="user_import_action"
+										value="save_mapping"><?php esc_html_e( 'Save mapping', 'user-import' ); ?></button>
+								</fieldset>
+								<br><br>
+								<div id="user-import-mapping-builder" class="user-import-mapping-builder">
+									<p><?php esc_html_e( 'Choose the CSV file, then drag user fields onto CSV columns. Drag a mapped field back to the user fields list to remove it. Required fields are marked.', 'user-import' ); ?>
+									</p>
+									<div id="user-import-mapping-panels" class="user-import-mapping-panels">
+										<svg id="user-import-mapping-lines" class="user-import-mapping-lines"
+											aria-hidden="true"></svg>
+										<div>
+											<h3><?php esc_html_e( 'CSV columns', 'user-import' ); ?></h3>
+											<div id="user-import-columns" class="user-import-columns" aria-live="polite"
+												data-csv-headers="<?php echo esc_attr( wp_json_encode( $csv_headers ) ); ?>">
+												<?php if ( empty( $csv_headers ) ) : ?>
+													<p><?php esc_html_e( 'CSV columns will appear here after you choose a file.', 'user-import' ); ?>
+													</p>
+												<?php else : ?>
+													<?php foreach ( $csv_headers as $header_index => $header ) : ?>
+														<div class="user-import-column">
+															<span class="dashicons dashicons-move user-import-drag-icon"
+																aria-hidden="true"></span>
+															<strong><?php echo esc_html( $header_index . ': ' . ( '' !== $header ? $header : __( '(blank header)', 'user-import' ) ) ); ?></strong>
+														</div>
+													<?php endforeach; ?>
+												<?php endif; ?>
+											</div>
+										</div>
+										<div>
+											<h3><?php esc_html_e( 'User fields', 'user-import' ); ?></h3>
+											<div id="user-import-fields" class="user-import-fields"
+												aria-label="<?php esc_attr_e( 'Draggable user fields', 'user-import' ); ?>">
+												<?php foreach ( self::get_mapping_fields() as $field => $label ) : ?>
+													<button type="button" class="user-import-field" draggable="true"
+														data-user-field="<?php echo esc_attr( $field ); ?>">
+														<span class="dashicons dashicons-move user-import-drag-icon"
+															aria-hidden="true"></span>
+														<?php echo esc_html( $label ); ?>
+														<?php echo in_array( $field, array( 'user_login', 'user_email' ), true ) ? ' *' : ''; ?>
+													</button>
 												<?php endforeach; ?>
-											<?php endif; ?>
-										</div>
-									</div>
-									<div>
-										<h3><?php esc_html_e( 'User fields', 'user-import' ); ?></h3>
-										<div id="user-import-fields" class="user-import-fields" aria-label="<?php esc_attr_e( 'Draggable user fields', 'user-import' ); ?>">
-											<?php foreach ( self::get_mapping_fields() as $field => $label ) : ?>
-												<button type="button" class="user-import-field" draggable="true" data-user-field="<?php echo esc_attr( $field ); ?>">
-														<span class="dashicons dashicons-move user-import-drag-icon" aria-hidden="true"></span>
-													<?php echo esc_html( $label ); ?><?php echo in_array( $field, array( 'user_login', 'user_email' ), true ) ? ' *' : ''; ?>
-												</button>
-											<?php endforeach; ?>
-										</div>
+											</div>
 										</div>
 									</div>
 								</div>
-							</div>
-							<h3><label for="user-import-mapping"><?php esc_html_e( 'Mapping text', 'user-import' ); ?></label></h3>
-							<textarea id="user-import-mapping" name="user_import_mapping" rows="8" class="large-text code" placeholder="Email Address=user_email&#10;0=user_login&#10;First Name=first_name&#10;Membership ID=meta:membership_id"><?php echo esc_textarea( $mapping ); ?></textarea>
-							<p class="description">
-								<?php esc_html_e( 'One mapping per line: CSV column name or zero-based column number = user field. Leave blank to use matching CSV headers.', 'user-import' ); ?><br>
-								<?php esc_html_e( 'Supported fields include user_login, user_email, user_pass, user_nicename, user_url, display_name, first_name, last_name, nickname, description, locale, role, and meta:KEY for user meta.', 'user-import' ); ?>
-							</p>
-						</td>
-					</tr>
-					<?php endif; ?>
-					<?php if ( 'roles' === $wizard_step ) : ?>
-					<tr>
-						<th scope="row"><?php esc_html_e( 'Roles', 'user-import' ); ?></th>
-						<td>
-							<p><?php esc_html_e( 'Select the roles to apply to every imported or updated user.', 'user-import' ); ?></p>
-							<?php foreach ( self::get_available_roles() as $role_slug => $role_label ) : ?>
-								<label>
-									<input type="checkbox" name="user_import_roles[]" value="<?php echo esc_attr( $role_slug ); ?>" <?php checked( in_array( $role_slug, $selected_roles, true ) ); ?>>
-									<?php echo esc_html( $role_label ); ?>
-								</label><br>
-							<?php endforeach; ?>
-						</td>
-					</tr>
-					<?php endif; ?>
-				</table>
-				<p class="submit">
-					<?php if ( 'import' === $mode && 'upload' === $wizard_step ) : ?>
-						<button id="user-import-continue-upload" type="submit" class="button button-primary" name="user_import_action" value="upload_csv" <?php echo '' === $pending_token ? 'disabled' : ''; ?>><?php esc_html_e( 'Continue to column mapping', 'user-import' ); ?></button>
-					<?php elseif ( 'import' === $mode && 'mapping' === $wizard_step ) : ?>
-						<button type="submit" class="button" name="user_import_action" value="back_to_upload"><?php esc_html_e( 'Back', 'user-import' ); ?></button>
-						<button type="submit" class="button button-primary" name="user_import_action" value="back_to_roles"><?php esc_html_e( 'Continue to roles', 'user-import' ); ?></button>
-					<?php elseif ( 'import' === $mode && 'roles' === $wizard_step ) : ?>
-						<button type="submit" class="button" name="user_import_action" value="back_to_mapping"><?php esc_html_e( 'Back', 'user-import' ); ?></button>
-						<button type="submit" class="button button-primary" name="user_import_action" value="import_users"><?php esc_html_e( 'Start import', 'user-import' ); ?></button>
-					<?php elseif ( 'import' === $mode ) : ?>
-						<button type="submit" class="button" name="user_import_action" value="back_to_mapping"><?php esc_html_e( 'Back to mapping', 'user-import' ); ?></button>
-						<button type="submit" class="button button-primary" name="user_import_action" value="restart_import"><?php esc_html_e( 'Run Again', 'user-import' ); ?></button>
-					<?php else : ?>
-						<button type="submit" class="button button-primary" name="user_import_action" value="export_csv"><?php esc_html_e( 'Export Mapped CSV', 'user-import' ); ?></button>
-					<?php endif; ?>
-				</p>
-			</form>
+			</div>
+			<h3><label for="user-import-mapping"><?php esc_html_e( 'Mapping text', 'user-import' ); ?></label></h3>
+			<textarea id="user-import-mapping" name="user_import_mapping" rows="8" class="large-text code"
+				placeholder="Email Address=user_email&#10;0=user_login&#10;First Name=first_name&#10;Membership ID=meta:membership_id"><?php echo esc_textarea( $mapping ); ?></textarea>
+			<p class="description">
+						<?php esc_html_e( 'One mapping per line: CSV column name or zero-based column number = user field. Leave blank to use matching CSV headers.', 'user-import' ); ?><br>
+						<?php esc_html_e( 'Supported fields include user_login, user_email, user_pass, user_nicename, user_url, display_name, first_name, last_name, nickname, description, locale, role, and meta:KEY for user meta.', 'user-import' ); ?>
+			</p>
+			</td>
+			</tr>
+		<?php endif; ?>
+		<?php if ( 'roles' === $wizard_step ) : ?>
+			<tr>
+				<th scope="row"><?php esc_html_e( 'Roles', 'user-import' ); ?></th>
+				<td>
+					<p><?php esc_html_e( 'Select the roles to apply to every imported or updated user.', 'user-import' ); ?></p>
+					<?php foreach ( self::get_available_roles() as $role_slug => $role_label ) : ?>
+						<label>
+							<input type="checkbox" name="user_import_roles[]" value="<?php echo esc_attr( $role_slug ); ?>" <?php checked( in_array( $role_slug, $selected_roles, true ) ); ?>>
+							<?php echo esc_html( $role_label ); ?>
+						</label><br>
+					<?php endforeach; ?>
+				</td>
+			</tr>
+		<?php endif; ?>
+		</table>
+		<p class="submit">
+			<?php if ( 'import' === $mode && 'upload' === $wizard_step ) : ?>
+				<button id="user-import-continue-upload" type="submit" class="button button-primary" name="user_import_action"
+					value="upload_csv" <?php echo '' === $pending_token ? 'disabled' : ''; ?>><?php esc_html_e( 'Continue to column mapping', 'user-import' ); ?></button>
+			<?php elseif ( 'import' === $mode && 'mapping' === $wizard_step ) : ?>
+				<button type="submit" class="button" name="user_import_action"
+					value="back_to_upload"><?php esc_html_e( 'Back', 'user-import' ); ?></button>
+				<button type="submit" class="button button-primary" name="user_import_action"
+					value="back_to_roles"><?php esc_html_e( 'Continue to roles', 'user-import' ); ?></button>
+			<?php elseif ( 'import' === $mode && 'roles' === $wizard_step ) : ?>
+				<button type="submit" class="button" name="user_import_action"
+					value="back_to_mapping"><?php esc_html_e( 'Back', 'user-import' ); ?></button>
+				<button type="submit" class="button button-primary" name="user_import_action"
+					value="import_users"><?php esc_html_e( 'Start import', 'user-import' ); ?></button>
+			<?php elseif ( 'import' === $mode ) : ?>
+				<button type="submit" class="button" name="user_import_action"
+					value="back_to_mapping"><?php esc_html_e( 'Back to mapping', 'user-import' ); ?></button>
+				<button type="submit" class="button button-primary" name="user_import_action"
+					value="restart_import"><?php esc_html_e( 'Run Again', 'user-import' ); ?></button>
+			<?php else : ?>
+				<button type="submit" class="button button-primary" name="user_import_action"
+					value="export_csv"><?php esc_html_e( 'Export Mapped CSV', 'user-import' ); ?></button>
+			<?php endif; ?>
+		</p>
+		</form>
 		</div>
 		<?php
 	}
@@ -629,7 +694,7 @@ final class User_Import_Plugin {
 	 * Keep an uploaded CSV available when an import needs correction and retry.
 	 *
 	 * @param array<string, mixed> $upload       Uploaded file data.
-	 * @param string              $existing_token Existing pending upload token.
+	 * @param string               $existing_token Existing pending upload token.
 	 * @return string Pending upload token, or an empty string on failure.
 	 */
 	private static function persist_pending_upload( array $upload, string $existing_token = '' ): string {
@@ -646,7 +711,7 @@ final class User_Import_Plugin {
 			return '';
 		}
 
-		$upload_dir = \wp_upload_dir();
+		$upload_dir  = \wp_upload_dir();
 		$pending_dir = \trailingslashit( $upload_dir['basedir'] ) . 'user-import-pending';
 		if ( ! \wp_mkdir_p( $pending_dir ) ) {
 			return '';
@@ -700,7 +765,7 @@ final class User_Import_Plugin {
 	 * Export the uploaded CSV using the selected mapping.
 	 *
 	 * @param array<string, mixed> $upload Uploaded file data.
-	 * @param string $mapping Mapping rules.
+	 * @param string               $mapping Mapping rules.
 	 * @return void
 	 */
 	private static function export_csv( array $upload, string $mapping ): void {
@@ -714,8 +779,8 @@ final class User_Import_Plugin {
 			\wp_die( \esc_html__( 'The CSV file could not be opened.', 'user-import' ) );
 		}
 
-		$headers = fgetcsv( $handle );
-		$headers = false === $headers ? array() : array_map( static fn( $header ): string => trim( (string) $header ), $headers );
+		$headers        = fgetcsv( $handle );
+		$headers        = false === $headers ? array() : array_map( static fn( $header ): string => trim( (string) $header ), $headers );
 		$column_mapping = self::parse_mapping( $mapping, $headers );
 		if ( is_wp_error( $column_mapping ) ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Closing the temporary uploaded CSV file.
@@ -726,12 +791,12 @@ final class User_Import_Plugin {
 		nocache_headers();
 		header( 'Content-Type: text/csv; charset=utf-8' );
 		header( 'Content-Disposition: attachment; filename="mapped-users.csv"' );
-		$output = fopen( 'php://output', 'wb' );
+		$output        = fopen( 'php://output', 'wb' );
 		$target_fields = array_values( $column_mapping );
 		fputcsv( $output, $target_fields );
 
 		while ( false !== ( $row = fgetcsv( $handle ) ) ) {
-			$row = array_pad( $row, count( $headers ), '' );
+			$row        = array_pad( $row, count( $headers ), '' );
 			$export_row = array();
 			foreach ( $column_mapping as $source_index => $target_field ) {
 				$export_row[] = $row[ $source_index ] ?? '';
@@ -750,14 +815,16 @@ final class User_Import_Plugin {
 	 * Import users from an uploaded CSV file.
 	 *
 	 * @param array<string, mixed> $upload  Uploaded file data.
-	 * @param string              $mapping Mapping rules from CSV columns to user fields.
+	 * @param string               $mapping Mapping rules from CSV columns to user fields.
+	 * @param array<string, mixed> $activity Activity log for the import process.
+	 * @param array<string>        $selected_roles Selected user roles for the import.
 	 * @return array{imported: int, updated: int, skipped: int, errors: string[]}|WP_Error
 	 */
 	private static function import_csv( array $upload, string $mapping = '', array &$activity = array(), array $selected_roles = array() ): array {
 		$logger = DmbcLogger::get_instance();
-        $logger->info( sprintf( 'Starting CSV import: uploaded data: %s, mapping: %s, selected roles: %s', \wp_json_encode( $upload ), $mapping, \wp_json_encode( $selected_roles ) ) );
+		$logger->info( sprintf( 'Starting CSV import: uploaded data: %s, mapping: %s, selected roles: %s', \wp_json_encode( $upload ), $mapping, \wp_json_encode( $selected_roles ) ) );
 		$user_register_hook = 'user_register';
-		$results = array(
+		$results            = array(
 			'imported' => 0,
 			'updated'  => 0,
 			'skipped'  => 0,
@@ -781,114 +848,116 @@ final class User_Import_Plugin {
 		\remove_all_actions( $user_register_hook );
 
 		try {
-            $headers = fgetcsv( stream: $handle, escape: '\\' );
-            if ( false === $headers ) {
-                $results['errors'][] = \esc_html__( 'The CSV file is empty.', 'user-import' );
-                return $results;
-            }
+			$headers = fgetcsv( stream: $handle, escape: '\\' );
+			if ( false === $headers ) {
+				$results['errors'][] = \esc_html__( 'The CSV file is empty.', 'user-import' );
+				return $results;
+			}
 
-            $headers       = array_map( static fn( $header ): string => trim( (string) $header ), $headers );
-            $column_mapping = self::parse_mapping( $mapping, $headers );
-            if ( \is_wp_error( $column_mapping ) ) {
-                $results['errors'][] = \esc_html( $column_mapping->get_error_message() );
-                return $results;
-            }
+			$headers        = array_map( static fn( $header ): string => trim( (string) $header ), $headers );
+			$column_mapping = self::parse_mapping( $mapping, $headers );
+			if ( \is_wp_error( $column_mapping ) ) {
+				$results['errors'][] = \esc_html( $column_mapping->get_error_message() );
+				return $results;
+			}
 
-            $row_number = 1;
-            while ( true ) {
-                $row = fgetcsv( stream: $handle, escape: '\\' );
-                if ( false === $row ) {
-                    break;
-                }
+			$row_number = 1;
+			while ( true ) {
+				$row = fgetcsv( stream: $handle, escape: '\\' );
+				if ( false === $row ) {
+					break;
+				}
 
-                ++$row_number;
-                if ( count( array_filter( $row, static fn( $value ): bool => '' !== trim( (string) $value ) ) ) < 1 ) {
-                    continue;
-                }
+				++$row_number;
+				if ( count( array_filter( $row, static fn( $value ): bool => '' !== trim( (string) $value ) ) ) < 1 ) {
+					continue;
+				}
 
-                $row = array_pad( $row, count( $headers ), '' );
-                if ( count( $row ) > count( $headers ) ) {
-                    /* translators: %d: CSV row number. */
-                    $results['errors'][] = sprintf( \esc_html__( 'Row %d could not be parsed.', 'user-import' ), $row_number );
-                    continue;
-                }
+				$row = array_pad( $row, count( $headers ), '' );
+				if ( count( $row ) > count( $headers ) ) {
+					/* translators: %d: CSV row number. */
+					$results['errors'][] = sprintf( \esc_html__( 'Row %d could not be parsed.', 'user-import' ), $row_number );
+					continue;
+				}
 
-                $data = array();
-                foreach ( $column_mapping as $source_index => $target_field ) {
-                    $data[ $target_field ] = (string) ( $row[ $source_index ] ?? '' );
-                }
+				$data = array();
+				foreach ( $column_mapping as $source_index => $target_field ) {
+					$data[ $target_field ] = (string) ( $row[ $source_index ] ?? '' );
+				}
 
-                $login = \sanitize_user( (string) ( $data['user_login'] ?? '' ), true );
-                $email = \sanitize_email( (string) ( $data['user_email'] ?? '' ) );
-                if ( '' === $login || ! is_email( $email ) ) {
-                    /* translators: %d: CSV row number. */
-                    $results['errors'][] = sprintf( \esc_html__( 'Row %d has an invalid username or email.', 'user-import' ), $row_number );
-                    continue;
-                }
+				$login = \sanitize_user( (string) ( $data['user_login'] ?? '' ), true );
+				$email = \sanitize_email( (string) ( $data['user_email'] ?? '' ) );
+				if ( ! is_email( $email ) ) {
+					/* translators: %d: CSV row number. */
+					$results['errors'][] = sprintf( \esc_html__( 'Row %d has an invalid email.', 'user-import' ), $row_number );
+					continue;
+				}
 
-                $existing_user = \get_user_by( 'login', $login );
-                if ( ! $existing_user ) {
-                    $existing_user = \get_user_by( 'email', $email );
-                }
+				$existing_user = \get_user_by( 'email', $email );
+				if ( ! $existing_user ) {
+					$existing_user = \get_user_by( 'login', $login );
+				}
 
-                if ( $existing_user ) {
-                    $update_data = array( 'ID' => (int) $existing_user->ID );
-                    foreach ( array_keys( self::get_mapping_fields() ) as $field ) {
-                        if ( isset( $data[ $field ] ) ) {
-                            $update_data[ $field ] = \sanitize_text_field( $data[ $field ] );
-                        }
-                    }
+				if ( $existing_user ) {
+					$update_data = array( 'ID' => (int) $existing_user->ID );
+					foreach ( array_keys( self::get_mapping_fields() ) as $field ) {
+						if ( isset( $data[ $field ] ) ) {
+							$update_data[ $field ] = \sanitize_text_field( $data[ $field ] );
+						}
+					}
 
-                    $updated_user_id = \wp_update_user( $update_data );
-                    if ( is_wp_error( $updated_user_id ) ) {
-                        /* translators: %d: CSV row number. */
-                        $results['errors'][] = sprintf( \esc_html__( 'Row %d could not be updated.', 'user-import' ), $row_number );
-                        continue;
-                    }
-                    self::apply_additional_roles( $existing_user, $selected_roles );
+					$updated_user_id = \wp_update_user( $update_data );
+					if ( is_wp_error( $updated_user_id ) ) {
+						/* translators: %d: CSV row number. */
+						$results['errors'][] = sprintf( \esc_html__( 'Row %d could not be updated.', 'user-import' ), $row_number );
+						continue;
+					}
+					self::apply_additional_roles( $existing_user, $selected_roles );
 
-                    foreach ( $data as $field => $value ) {
-                        if ( str_starts_with( $field, 'meta:' ) ) {
-                            \update_user_meta( $updated_user_id, sanitize_key( substr( $field, 5 ) ), sanitize_text_field( $value ) );
-                        }
-                    }
+					foreach ( $data as $field => $value ) {
+						if ( str_starts_with( $field, 'meta:' ) ) {
+							\update_user_meta( $updated_user_id, sanitize_key( substr( $field, 5 ) ), sanitize_text_field( $value ) );
+						}
+					}
 
-                    ++$results['updated'];
-                    $activity[] = sprintf( __( 'Updated user: %s', 'user-import' ), $login );
-                    continue;
-                }
+					++$results['updated'];
+					/* translators: %s: user email. */
+					$activity[] = sprintf( __( 'Updated user: %s', 'user-import' ), $email );
+					continue;
+				}
 
-                $user_data = array(
-                    'user_login'   => $login,
-                    'user_email'   => $email,
-                    'user_pass'    => \wp_generate_password(),
-                );
-                foreach ( array_keys( self::get_mapping_fields() ) as $field ) {
-                    if ( isset( $data[ $field ] ) ) {
-                        $user_data[ $field ] = \sanitize_text_field( $data[ $field ] );
-                    }
-                }
+				$user_data = array(
+					'user_login' => $login,
+					'user_email' => $email,
+					'user_pass'  => \wp_generate_password(),
+				);
+				foreach ( array_keys( self::get_mapping_fields() ) as $field ) {
+					if ( isset( $data[ $field ] ) ) {
+						$user_data[ $field ] = \sanitize_text_field( $data[ $field ] );
+					}
+				}
 
-                $user_id = wp_insert_user( $user_data );
-                if ( is_wp_error( $user_id ) ) {
-                    /* translators: %d: CSV row number. %s is the user_login or user_email. */
-                    $results['errors'][] = sprintf( __( 'Row %d ( %s) could not be imported.', 'user-import' ), $row_number, empty($user_data['user_login']) ? $user_data['user_email'] : $user_data['user_login'   ] );
-                    continue;
-                }
-                $new_user = \get_user_by( 'ID', $user_id );
-                self::apply_additional_roles($new_user, $selected_roles );
+				$user_id = wp_insert_user( $user_data );
+				if ( is_wp_error( $user_id ) ) {
+					/* translators: %d: CSV row number. %s is the user_login or user_email. */
+					$results['errors'][] = sprintf( __( 'Row %1$d ( %2$s) could not be imported.', 'user-import' ), $row_number, empty( $user_data['user_login'] ) ? $user_data['user_email'] : $user_data['user_login'] );
+					continue;
+				}
+				$new_user = \get_user_by( 'ID', $user_id );
+				self::apply_additional_roles( $new_user, $selected_roles );
 
-                foreach ( $data as $field => $value ) {
-                    if ( str_starts_with( $field, 'meta:' ) ) {
-                        \update_user_meta( $user_id, \sanitize_key( substr( $field, 5 ) ), \sanitize_text_field( $value ) );
-                    }
-                }
+				foreach ( $data as $field => $value ) {
+					if ( str_starts_with( $field, 'meta:' ) ) {
+						\update_user_meta( $user_id, \sanitize_key( substr( $field, 5 ) ), \sanitize_text_field( $value ) );
+					}
+				}
 
-                ++$results['imported'];
-                $activity[] = sprintf( \__( 'Created user: %s', 'user-import' ), $login );
-            }
+				++$results['imported'];
+				/* translators: %s: user email. */
+				$activity[] = sprintf( \__( 'Created user: %s', 'user-import' ), $email );
+			}
 
-            return $results;
+			return $results;
 		} catch ( \Throwable $exception ) {
 			$results['errors'][] = \__( 'The CSV import could not be completed.', 'user-import' );
 			$results['errors'][] = $exception->getMessage();
@@ -897,6 +966,7 @@ final class User_Import_Plugin {
 			if ( null === $register_user_hooks ) {
 				unset( $wp_filter[ $user_register_hook ] );
 			} else {
+				// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
 				$wp_filter[ $user_register_hook ] = $register_user_hooks;
 			}
 
@@ -920,27 +990,25 @@ final class User_Import_Plugin {
 	 * @return void
 	 */
 	private static function apply_additional_roles( WP_User $user, array $roles ): void {
-        $logger = DmbcLogger::get_instance();
+		$logger = DmbcLogger::get_instance();
 
-        if ( empty( $roles ) ) {
-            $logger->info( 'No additional roles to apply.' );
-            return;
-        }
-        $errors = array();
+		if ( empty( $roles ) ) {
+			$logger->info( 'No additional roles to apply.' );
+			return;
+		}
+		$errors = array();
 
-		foreach ( array_slice( $roles, 1 ) as $role ) {
-            if (! empty($role)) {
-                if ( \get_role( $role ) ) {
-                    $user->add_role( $role );
-                }
-                else {
-                    // Log each missing role only once.
-                    if (! isset($errors[$role])) {
-                        $errors[$role] = true;
-                        $logger->error( sprintf( 'Role does not exist: %s', $role ) );
-                    }
-                }
-            }
+		foreach ( $roles as $role ) {
+			$role = trim( (string) $role );
+			if ( ! empty( $role ) ) {
+				if ( \get_role( $role ) ) {
+					$user->add_role( $role );
+				} elseif ( ! isset( $errors[ $role ] ) ) {
+					$errors[ $role ] = true;
+					/* translators: %s: role slug. */
+					$logger->error( sprintf( __( 'Role does not exist: %s', 'user-import' ), $role ) );
+				}
+			}
 		}
 	}
 
@@ -969,7 +1037,7 @@ final class User_Import_Plugin {
 	 * @param string[] $headers CSV header values.
 	 * @return array<int, string>|\WP_Error
 	 */
-	private static function parse_mapping( string $mapping, array $headers ) {
+	private static function parse_mapping( string $mapping, array $headers ): array|WP_Error {
 		if ( '' === trim( $mapping ) ) {
 			$mapping = implode( "\n", array_map( static fn( $header ): string => $header . '=' . sanitize_key( $header ), $headers ) );
 		}
@@ -991,6 +1059,7 @@ final class User_Import_Plugin {
 			}
 
 			if ( ! in_array( $target, $allowed_fields, true ) && ! str_starts_with( $target, 'meta:' ) ) {
+				/* translators: %s: unsupported user field. Ensure the field is one of the allowed fields or a meta field. */
 				return new \WP_Error( 'invalid_mapping', sprintf( __( 'Unsupported user field: %s.', 'user-import' ), $target ) );
 			}
 
@@ -1007,6 +1076,7 @@ final class User_Import_Plugin {
 			}
 
 			if ( null === $source_index || ! array_key_exists( $source_index, $headers ) ) {
+				/* translators: %s: CSV column not found. */
 				return new \WP_Error( 'invalid_mapping', sprintf( __( 'CSV column not found: %s.', 'user-import' ), $source ) );
 			}
 
@@ -1014,8 +1084,12 @@ final class User_Import_Plugin {
 		}
 
 		$mapped_fields = array_values( $parsed );
-		if ( ! in_array( 'user_login', $mapped_fields, true ) || ! in_array( 'user_email', $mapped_fields, true ) ) {
-			return new \WP_Error( 'missing_mapping', __( 'Map columns to both user_login and user_email.', 'user-import' ) );
+		if ( ! in_array( 'user_login', $mapped_fields, true ) ) {
+			$parsed['notice']      = esc_html__( 'No users will be created. If you want to create users that do not already exist, then you must map a field to the Username.', 'user-import' );
+			$parsed['notice_type'] = 'notice-warning';
+		}
+		if ( ! in_array( 'user_email', $mapped_fields, true ) ) {
+			return new \WP_Error( 'missing_user_email_mapping', __( 'You must map a column to Email.', 'user-import' ) );
 		}
 
 		return $parsed;
