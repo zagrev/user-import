@@ -33,6 +33,13 @@
 	color: #8a2424;
 }
 
+.user-import-mapping-builder .notice-warning,
+.user-import-mapping-builder + .notice-warning,
+.wrap > .notice-warning {
+	border-left-color: #ffb900;
+	color: #8a6d00;
+}
+
 .user-import-mapping-lines {
 	position: absolute;
 	inset: 0;

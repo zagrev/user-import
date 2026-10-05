@@ -207,4 +207,4 @@ assertSame( $user['user_email'], $retrieved_user->user_email );
 assertSame( $user['user_login'], $retrieved_user->user_login );
 
 
-DmbcLogger::get_instance()->set_level( DmbcLogger::LEVEL_DEBUG );
+DmbcLogger::get_instance()->set_level( DmbcLogger::LEVEL_WARN );
