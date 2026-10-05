@@ -18,7 +18,7 @@
     }
   },
   "scripts": {
-    "lint": "php -l user-import.php && php -l uninstall.php && php -l tests/UserImportTest.php",
+    "lint": "php -l user-import.php && php -l user-export.php && php -l uninstall.php && php -l tests/UserImportTest.php && php -l tests/UserExportTest.php",
     "test": "phpunit"
   }
 }
