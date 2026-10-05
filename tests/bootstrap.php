@@ -110,13 +110,16 @@ function esc_html( $text ): string { return htmlspecialchars( (string) $text, EN
 function esc_attr__( string $text, string $domain = 'default' ): string { return $text; }
 function esc_attr_e( string $text, string $domain = 'default' ): void { echo esc_attr( $text ); }
 function esc_attr( $text ): string { return htmlspecialchars( (string) $text, ENT_QUOTES ); }
+function esc_url( $text ): string { return esc_attr( $text ); }
+function admin_url( string $path ): string { return '/wp-admin/' . $path; }
+function get_user_meta( int $id, string $key, bool $single = false ) { return $GLOBALS['user_import_test_state']['user_meta'][ $id ][ $key ] ?? ''; }
 function current_user_can( string $capability ): bool { return true; }
 function check_admin_referer( string $action ): bool { return true; }
 function wp_unslash( $value ) { return $value; }
 function sanitize_key( string $value ): string { return preg_replace( '/[^a-z0-9_\-:]/', '', strtolower( $value ) ); }
 function sanitize_file_name( string $value ): string { return preg_replace( '/[^a-zA-Z0-9._-]/', '', $value ); }
 function sanitize_user( string $value, bool $strict = false ): string { return preg_replace( '/[^a-z0-9_\-\.]/i', '', $value ); }
-function sanitize_text_field( string $value ): string { return trim( strip_tags( $value ) ); }
+function sanitize_text_field( $value ): string { return is_scalar( $value ) ? trim( strip_tags( (string) $value ) ) : ''; }
 function esc_textarea( $value ): string { return htmlspecialchars( (string) $value, ENT_QUOTES ); }
 function wp_json_encode( $value ): string { return json_encode( $value ); }
 function selected( $selected, $current ): void { if ( (string) $selected === (string) $current ) { echo ' selected="selected"'; } }
@@ -192,6 +195,39 @@ function submit_button( string $text, string $type, string $name ): void {}
 function UM(): User_Import_Test_Um { return new User_Import_Test_Um(); }
 function acf_get_field_groups(): array { return $GLOBALS['user_import_test_state']['acf_groups']; }
 function acf_get_fields( $group ): array { return $GLOBALS['user_import_test_state']['acf_fields'][ $group['key'] ?? '' ] ?? array(); }
+
+class WP_User_Query {
+	private array $users;
+	private int $total;
+
+	public function __construct( array $args ) {
+		$GLOBALS['user_import_test_state']['export_queries'][] = $args;
+		$this->users = array_values( array_filter( $GLOBALS['user_import_test_state']['existing_users'], static function ( $user ) use ( $args ): bool {
+			if ( isset( $args['role'] ) && ! in_array( $args['role'], $user->roles, true ) ) {
+				return false;
+			}
+			if ( isset( $args['include'] ) && ! in_array( $user->ID, $args['include'], true ) ) {
+				return false;
+			}
+			if ( isset( $args['search'] ) ) {
+				$needle = trim( $args['search'], '*' );
+				foreach ( $args['search_columns'] as $column ) {
+					if ( false !== stripos( $user->$column, $needle ) ) {
+						return true;
+					}
+				}
+				return false;
+			}
+			return true;
+		} ) );
+		usort( $this->users, static fn( $left, $right ) => $left->ID <=> $right->ID );
+		$this->total = count( $this->users );
+		$this->users = array_slice( $this->users, $args['offset'] ?? 0, $args['number'] ?? null );
+	}
+
+	public function get_results(): array { return $this->users; }
+	public function get_total(): int { return $this->total; }
+}
 
 require_once dirname( __DIR__ ) . '/user-import.php';
 require_once dirname( __DIR__ ) . '/logger.php';

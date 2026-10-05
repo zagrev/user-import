@@ -4,7 +4,7 @@ Wordpress plugin to import users from CSV files, mapping column names to core us
 
 ## Description
 
-User Import adds separate Import Users and Export Users pages under Users in the WordPress admin. Both pages share the same mapping editor and saved mappings.
+User Import adds independent Import Users and Export Users workflows under Users in the WordPress admin. Saved CSV mappings belong to the importer only.
 
 The Import Users page is a four-step wizard:
 
@@ -27,7 +27,15 @@ On the Import Users page, choose the CSV file to display its columns. Drag a use
 
 Mappings can be saved by entering a name and clicking **Save mapping**. Select a saved mapping to load it into the mapping editor for reuse.
 
-On the Export Users page, choose a CSV file, select or create a mapping, and click **Export Mapped CSV** to download a new CSV whose columns follow the selected user fields. The original CSV is not changed.
+## Export Users
+
+1. Select existing WordPress users by group/role (or all users), or enter a search query matching username, email, nicename or display name. WP Mailster groups are available when its tables exist; only linked WordPress users are included.
+2. Select fields and arrange CSV column order by dragging fields between the available and selected lists, or within the selected list. Checkboxes and arrow buttons provide keyboard and touch alternatives.
+3. Review the matching user count and ordered columns, then download the CSV.
+
+Back buttons preserve the selection and field order. No CSV upload or import mapping is needed. Exports include core user fields, roles, registered dates, and discovered Ultimate Member/ACF user metadata, but never password hashes. Array values are JSON encoded. Spreadsheet formula-like values are escaped. The download queries current users in batches and requires the WordPress `list_users` capability.
+
+## Mapping Examples
 
 For example:
 
