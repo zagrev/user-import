@@ -82,11 +82,13 @@ jobs:
             --exclude='.git/' \
             --exclude='.github/' \
             --exclude='.gitignore' \
+            --exclude='.phpunit.cache/' \
             --exclude='.phpunit.result.cache' \
             --exclude='tests/' \
-            --exclude='vendor/' \
+            --exclude='.wp-env.json' \
             --exclude='composer.json' \
             --exclude='composer.lock' \
+            --exclude='phpcs.xml' \
             --exclude='phpunit.xml'
           cd "$RUNNER_TEMP"
           zip -r "$PACKAGE_ZIP" "user-import"
