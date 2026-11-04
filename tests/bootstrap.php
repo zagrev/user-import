@@ -4,6 +4,7 @@ declare(strict_types=1);
 use function PHPUnit\Framework\assertSame;
 
 define( 'ABSPATH', __DIR__ . '/' );
+define( 'WP_DEBUG', false );
 
 class WP_Error {
 	public function __construct(
@@ -98,11 +99,19 @@ $GLOBALS['user_import_test_state'] = array(
 );
 
 function add_action( string $hook, $callback ): void {}
+function add_filter( string $hook, $callback, int $priority = 10, int $accepted_args = 1 ): bool { return true; }
+function apply_filters( string $hook, $value, ...$args ) { return $value; }
+function did_action( string $hook ): int { return 0; }
+function plugin_basename( string $file ): string { return basename( $file ); }
+function register_deactivation_hook( string $file, $callback ): void {}
+function wp_next_scheduled( string $hook ): bool { return false; }
+function wp_schedule_event( int $timestamp, string $recurrence, string $hook ): bool { return true; }
 function remove_all_actions( string $hook ): void { unset( $GLOBALS['wp_filter'][ $hook ] ); }
 function add_users_page( ...$args ): string { return 'users_page_user-import'; }
 function wp_enqueue_script( ...$args ): void {}
 function wp_enqueue_style( ...$args ): void {}
 function plugin_dir_url( string $file ): string { return ''; }
+function wp_parse_url( string $url, int $component = -1 ) { return parse_url( $url, $component ); }
 function __( string $text, string $domain = 'default' ): string { return $text; }
 function esc_html__( string $text, string $domain = 'default' ): string { return $text; }
 function esc_html_e( string $text, string $domain = 'default' ): void { echo $text; }
