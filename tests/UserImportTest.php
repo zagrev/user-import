@@ -114,7 +114,7 @@ final class UserImportTest extends TestCase {
 		$this->assertStringContainsString( 'Step 1:', $html );
 		$this->assertStringContainsString( 'Drop a CSV file here', $html );
 		$this->assertStringContainsString( 'Continue to column mapping', $html );
-		$this->assertStringContainsString( 'name="user_import_action" value="upload_csv"', $html );
+		$this->assertMatchesRegularExpression( '/name="user_import_action"\s+value="upload_csv"/', $html );
 	}
 
 	public function test_step_one_continue_is_enabled_for_retained_csv(): void {
